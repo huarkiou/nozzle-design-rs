@@ -1,6 +1,5 @@
 use crate::rootfinding::error::RootFindingError;
 use crate::rootfinding::rootbracket::RootBracket;
-use std::f64;
 
 /// TOMS748 一维方程求根算法，返回包含根的区间信息结构体
 ///
