@@ -1,4 +1,4 @@
-// 返回 Gauss-Legendre 积分点和权重数组（精度达 f64 上限）
+// 返回 Gauss-Legendre 积分点和权重数组（精度达 f64 上限） 要求第i个点和第n-i个点对称
 const fn gauss_legendre_points<const N: usize>() -> Option<(&'static [f64], &'static [f64])> {
     match N {
         1 => Some((&[0.0], &[2.0])),
@@ -190,31 +190,31 @@ const fn gauss_legendre_points<const N: usize>() -> Option<(&'static [f64], &'st
         // n = 12
         12 => Some((
             &[
+                -0.9815606342467192,
+                -0.9041172563704749,
+                -0.7699026741943047,
+                -0.5873179542866175,
+                -0.3678314989981802,
                 -0.1252334085114689,
                 0.1252334085114689,
-                -0.3678314989981802,
                 0.3678314989981802,
-                -0.5873179542866175,
                 0.5873179542866175,
-                -0.7699026741943047,
                 0.7699026741943047,
-                -0.9041172563704749,
                 0.9041172563704749,
-                -0.9815606342467192,
                 0.9815606342467192,
             ],
             &[
-                0.2491470458134028,
-                0.2491470458134028,
-                0.2334925365383548,
-                0.2334925365383548,
-                0.2031674267230659,
-                0.2031674267230659,
-                0.1600783285433462,
-                0.1600783285433462,
-                0.1069393259953184,
-                0.1069393259953184,
                 0.0471753363865118,
+                0.1069393259953184,
+                0.1600783285433462,
+                0.2031674267230659,
+                0.2334925365383548,
+                0.2491470458134028,
+                0.2491470458134028,
+                0.2334925365383548,
+                0.2031674267230659,
+                0.1600783285433462,
+                0.1069393259953184,
                 0.0471753363865118,
             ],
         )),
@@ -348,16 +348,60 @@ where
 
     let mut sum = 0.0;
 
-    for i in 0..N {
-        let x = points[i];
-        let w = weights[i];
-
+    // 如果是奇数个点，单独处理中间那个 0 点
+    let mid = N / 2;
+    if N % 2 == 1 {
+        let x = points[mid];
+        let w = weights[mid];
         let x_mapped = map_to_canonical(x, a, b);
         sum += w * f(x_mapped);
     }
 
+    // 对称点配对处理
+    for i in 0..mid {
+        let x = points[i];
+        let w = weights[i];
+
+        // 利用对称性：x_left = -x_right
+        let x1 = map_to_canonical(x, a, b);
+        let x2 = map_to_canonical(-x, a, b);
+
+        let f1 = f(x1);
+        let f2 = f(x2);
+
+        sum += w * (f1 + f2);
+    }
+
     let scale = (b - a) / 2.0;
     sum * scale
+}
+
+/// 自适应高斯积分函数
+///
+/// # 参数
+/// - `f`: 被积函数
+/// - `a`: 积分下限
+/// - `b`: 积分上限
+/// - `eps_abs`: 绝对误差容限
+/// - `depth`: 最大递归深度（防止栈溢出）
+pub fn integrate_adaptive<F>(f: F, a: f64, b: f64, eps_abs: f64, depth: usize) -> f64
+where
+    F: Fn(f64) -> f64 + Copy,
+{
+    // 使用 n=5 和 n=10 的 Gauss 点进行积分比较
+    let integral_5 = integrate::<5, _>(f, a, b);
+    let integral_10 = integrate::<10, _>(f, a, b);
+
+    let error = (integral_10 - integral_5).abs();
+
+    // 如果误差小于容限 或 已达最大递归深度，则返回高阶积分结果
+    if error < eps_abs || depth == 0 {
+        integral_10
+    } else {
+        let mid = (a + b) / 2.0;
+        integrate_adaptive(f, a, mid, eps_abs * 0.5, depth - 1)
+            + integrate_adaptive(f, mid, b, eps_abs * 0.5, depth - 1)
+    }
 }
 
 #[cfg(test)]
@@ -391,5 +435,43 @@ mod tests {
         let result = integrate::<2, _>(|x| x * x, -1.0, 1.0);
         let expected = 2.0 / 3.0;
         assert!((result - expected).abs() < f64::EPSILON, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_integrate_zero_interval() {
+        // 区间长度为零，积分应为 0
+        let result = integrate::<5, _>(|x| x.sin(), 100.0, 100.0);
+        assert!(result.abs() < f64::EPSILON, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_integrate_large_interval() {
+        // 区间非常大：∫_{-1e6}^{1e6} e^{-x^2} dx ≈ sqrt(π) （近似）
+        let result = integrate_adaptive::<_>(|x| (-x * x).exp(), -80.0, 80.0, 1e-15, 32);
+        let expected = std::f64::consts::PI.sqrt();
+        assert!((result - expected).abs() < 1e-15, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_integrate_min_max_values() {
+        // 使用最大最小浮点数测试稳定性
+        let result = integrate::<10, _>(|x| x, f64::MIN / 2., f64::MAX / 2.);
+        print!("{:e}", result);
+        assert!(result.abs() < f64::EPSILON, "Result should be finite");
+    }
+
+    #[test]
+    fn test_integrate_discontinuous_function() {
+        // 分段函数：x < 0 ? 0 : 1，在 [-1, 1] 上积分应为 1
+        let result = integrate::<10, _>(|x| if x < 0.0 { 0.0 } else { 1.0 }, -1.0, 1.0);
+        let expected = 1.0;
+        assert!((result - expected).abs() < 1e-15, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_integrate_high_frequency_oscillation() {
+        // 高频震荡函数：sin(1/x) 在 [0.001, 1] 上积分
+        let result = integrate::<10, _>(|x| (1.0 / x).sin(), 0.000000001, 1.0);
+        assert!(result.is_finite(), "Got: {}", result);
     }
 }
