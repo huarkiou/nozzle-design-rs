@@ -383,20 +383,22 @@ where
 /// - `a`: 积分下限
 /// - `b`: 积分上限
 /// - `eps_abs`: 绝对误差容限
-/// - `depth`: 最大递归深度（防止栈溢出）
+/// - `depth`: 最大递归深度（一般建议小一点，二十层以上占用较多资源，更高可能会栈溢出）
 pub fn integrate_adaptive<F>(f: F, a: f64, b: f64, eps_abs: f64, depth: usize) -> f64
 where
     F: Fn(f64) -> f64 + Copy,
 {
     // 使用 n=5 和 n=10 的 Gauss 点进行积分比较
-    let integral_5 = integrate::<5, _>(f, a, b);
-    let integral_10 = integrate::<10, _>(f, a, b);
+    const N: usize = 5;
 
-    let error = (integral_10 - integral_5).abs();
+    let integral_low = integrate::<N, _>(f, a, b);
+    let integral_high = integrate::<{ 2 * N }, _>(f, a, b);
+
+    let error = (integral_high - integral_low).abs();
 
     // 如果误差小于容限 或 已达最大递归深度，则返回高阶积分结果
     if error < eps_abs || depth == 0 {
-        integral_10
+        integral_high
     } else {
         let mid = (a + b) / 2.0;
         integrate_adaptive(f, a, mid, eps_abs * 0.5, depth - 1)
@@ -447,7 +449,7 @@ mod tests {
     #[test]
     fn test_integrate_large_interval() {
         // 区间非常大：∫_{-1e6}^{1e6} e^{-x^2} dx ≈ sqrt(π) （近似）
-        let result = integrate_adaptive::<_>(|x| (-x * x).exp(), -80.0, 80.0, 1e-15, 32);
+        let result = integrate_adaptive::<_>(|x| (-x * x).exp(), -80.0, 80.0, 1e-15, 10);
         let expected = std::f64::consts::PI.sqrt();
         assert!((result - expected).abs() < 1e-15, "Got: {}", result);
     }
@@ -473,5 +475,94 @@ mod tests {
         // 高频震荡函数：sin(1/x) 在 [0.001, 1] 上积分
         let result = integrate::<10, _>(|x| (1.0 / x).sin(), 0.000000001, 1.0);
         assert!(result.is_finite(), "Got: {}", result);
+    }
+
+    const EPS: f64 = 1e-12;
+
+    #[test]
+    fn test_constant_function() {
+        let result = integrate_adaptive(|_| 1.0, 0.0, 10.0, EPS, 10);
+        let expected = 10.0;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_linear_function() {
+        let result = integrate_adaptive(|x| x, 0.0, 1.0, EPS, 10);
+        let expected = 0.5;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_quadratic_function() {
+        let result = integrate_adaptive(|x| x * x, -1.0, 1.0, EPS, 10);
+        let expected = 2.0 / 3.0;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_exp_function() {
+        let result = integrate_adaptive(|x| x.exp(), 0.0, 1.0, EPS, 10);
+        let expected = std::f64::consts::E - 1.0;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_sin_function() {
+        let result = integrate_adaptive(|x| x.sin(), 0.0, std::f64::consts::PI, EPS, 10);
+        let expected = 2.0;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_discontinuous_function() {
+        let result = integrate_adaptive(|x| if x < 0.0 { 0.0 } else { 1.0 }, -1.0, 1.0, EPS, 10);
+        let expected = 1.0;
+        assert!((result - expected).abs() < 1e-8, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_high_frequency_oscillation() {
+        // sin(1/x) 在 [0.001, 1] 上积分
+        let result = integrate_adaptive(|x| (1.0 / x).sin(), 0.001, 1.0, 1e-8, 10);
+        assert!(result.is_finite(), "Result should be finite");
+    }
+
+    #[test]
+    fn test_gaussian_large_interval() {
+        // ∫_{-inf}^{inf} e^{-x^2} dx ≈ sqrt(pi)
+        let result = integrate_adaptive(|x| (-x * x).exp(), -8.0, 8.0, 1e-10, 10);
+        let expected = std::f64::consts::PI.sqrt();
+        assert!((result - expected).abs() < 1e-10, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_zero_interval() {
+        let result = integrate_adaptive(|x| x.sin(), 100.0, 100.0, EPS, 10);
+        assert!(
+            result.abs() < EPS,
+            "Integral over zero-length interval should be 0"
+        );
+    }
+
+    #[test]
+    fn test_negative_interval() {
+        let result = integrate_adaptive(|x| x * x, -2.0, -1.0, EPS, 10);
+        let expected = ((-1.0_f64).powi(3) - (-2.0_f64).powi(3)) / 3.0;
+        assert!((result - expected).abs() < EPS, "Got: {}", result);
+    }
+
+    #[test]
+    fn test_large_depth_recursion() {
+        let a: f64 = 0.0;
+        let b: f64 = 10000.0;
+        let result = integrate_adaptive(|x| x.sin(), a, b, EPS, 16); //26层以内应该可以算1e8
+        let expected = -b.cos() + a.cos();
+        assert!(
+            (result - expected).abs() < EPS,
+            "Got: {} Expected: {}",
+            result,
+            expected
+        );
     }
 }
