@@ -604,7 +604,7 @@ where
     F: Fn(f64) -> f64 + Copy,
 {
     // 使用 n=5 和 n=10 的 Gauss 点进行积分比较
-    const N: usize = 5;
+    const N: usize = 10;
 
     let integral_low = integrate::<N, _>(f, a, b);
     let integral_high = integrate::<{ 2 * N }, _>(f, a, b);
@@ -826,7 +826,7 @@ mod tests {
     #[test]
     fn test_large_depth_recursion() {
         let a: f64 = 0.0;
-        let b: f64 = 10000.0;
+        let b: f64 = 100000.0;
         let result = integrate_adaptive(|x| x.sin(), a, b, EPS, 16); //26层以内应该可以算1e8
         let expected = -b.cos() + a.cos();
         assert!(
