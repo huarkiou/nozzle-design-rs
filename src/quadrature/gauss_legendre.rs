@@ -327,6 +327,45 @@ const fn gauss_legendre_points<const N: usize>() -> Option<(&'static [f64], &'st
             ],
         )),
 
+        16 => Some((
+            &[
+                -0.9894009349916499,
+                -0.9445750230732326,
+                -0.8656312023878318,
+                -0.7554044083550030,
+                -0.6178762444026438,
+                -0.4580167776572274,
+                -0.2816035507792589,
+                -0.0950125098376374,
+                0.0950125098376374,
+                0.2816035507792589,
+                0.4580167776572274,
+                0.6178762444026438,
+                0.7554044083550030,
+                0.8656312023878318,
+                0.9445750230732326,
+                0.9894009349916499,
+            ],
+            &[
+                0.0271524594117541,
+                0.0622535239386479,
+                0.0951585116824928,
+                0.1246289712555339,
+                0.1495959888165767,
+                0.1691565193950025,
+                0.1826034150449236,
+                0.1894506104550685,
+                0.1894506104550685,
+                0.1826034150449236,
+                0.1691565193950025,
+                0.1495959888165767,
+                0.1246289712555339,
+                0.0951585116824928,
+                0.0622535239386479,
+                0.0271524594117541,
+            ],
+        )),
+
         _ => None,
     }
 }
@@ -409,6 +448,57 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_gauss_legendre_point_n<const N: usize>() {
+        if let Some((points, weights)) = gauss_legendre_points::<N>() {
+            assert_eq!(points.len(), N);
+            assert_eq!(weights.len(), N);
+
+            // 检查对称性：第i个点和第n-1-i个点应该对称
+            for i in 0..N / 2 {
+                let j = N - 1 - i;
+                assert!(
+                    (points[i] + points[j]).abs() < 1e-12,
+                    "Points are not symmetric at i={}",
+                    i
+                );
+            }
+
+            // 检查在区间[-1,1]上对1的积分为2
+            let sum_weights: f64 = weights.iter().sum();
+            assert!(
+                (sum_weights - 2.0).abs() < f64::EPSILON * 2.05,
+                "Sum of weights for N={} is {}, not equal to 2.0",
+                N,
+                sum_weights
+            );
+        } else {
+            panic!(
+                "Failed to get Gauss-Legendre points and weights for N = {}",
+                N
+            );
+        }
+    }
+
+    #[test]
+    fn test_gauss_legendre_points() {
+        test_gauss_legendre_point_n::<1>();
+        test_gauss_legendre_point_n::<2>();
+        test_gauss_legendre_point_n::<3>();
+        test_gauss_legendre_point_n::<4>();
+        test_gauss_legendre_point_n::<5>();
+        test_gauss_legendre_point_n::<6>();
+        test_gauss_legendre_point_n::<7>();
+        test_gauss_legendre_point_n::<8>();
+        test_gauss_legendre_point_n::<9>();
+        test_gauss_legendre_point_n::<10>();
+        test_gauss_legendre_point_n::<11>();
+        test_gauss_legendre_point_n::<12>();
+        test_gauss_legendre_point_n::<13>();
+        test_gauss_legendre_point_n::<14>();
+        test_gauss_legendre_point_n::<15>();
+        test_gauss_legendre_point_n::<16>();
+    }
 
     #[test]
     fn test_integrate_sin_5() {
