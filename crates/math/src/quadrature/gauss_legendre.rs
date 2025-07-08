@@ -554,6 +554,11 @@ const fn map_to_canonical(x: f64, a: f64, b: f64) -> f64 {
 }
 
 // 编译期确定积分点数的高斯积分函数
+///
+/// # 参数
+/// - `f`: 被积函数
+/// - `a`: 积分下限
+/// - `b`: 积分上限
 pub fn integrate<const N: usize, F>(f: F, a: f64, b: f64) -> f64
 where
     F: Fn(f64) -> f64,
