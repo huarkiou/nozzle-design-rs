@@ -1,5 +1,11 @@
 use crate::rootfinding::{RootBracket, RootFindingError};
 
+pub fn max_iterations(interval: f64, tol: f64, ndivide: usize) -> usize {
+    assert!(ndivide >= 2);
+    let ret = ((interval / tol).log2() / (ndivide as f64).log2()).round() as usize + 1;
+    if ret < 1 { 1 } else { ret }
+}
+
 /// 二分搜索法查找函数根
 pub fn solve_bracket<F>(
     a: f64,
@@ -97,6 +103,12 @@ mod tests {
     const ABS_TOL: f64 = 1e-10;
     const REL_TOL: f64 = 1e-10;
     const MAX_ITER: usize = 100;
+
+    #[test]
+    fn test_max_iterations_predict() {
+        let n = max_iterations((10 - 1) as f64, 1 as f64, 2);
+        assert_eq!(n, 4);
+    }
 
     #[test]
     fn test_invalid_interval() {
