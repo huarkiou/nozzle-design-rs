@@ -37,7 +37,10 @@ impl Material {
     pub const BOLTZMANN_CONSTANT: f64 = 1.380649e-23; // J/K
     pub const SPEED_OF_LIGHT: f64 = 299792458.0; // m/s
 
-    // 直接提供摩尔质量和 Cp(T) 函数
+    /// 用摩尔质量kg/kmol和Cp(T)函数构造
+    /// # 参数
+    /// - `molecular_weight`: 摩尔质量(单位kg/kmol) 注意此处不是国际单位制
+    /// - `cp`: 定压比热容(单位J/(kg·K))关于温度T(单位K)的函数
     pub fn new(molecular_weight: f64, cp: impl Fn(f64) -> f64 + 'static) -> Self {
         Self {
             molecular_weight,
@@ -45,7 +48,10 @@ impl Material {
         }
     }
 
-    // 通过 Mw 和 Cp 构造（假设 Cp 是常数）
+    /// 用摩尔质量kg/kmol和Cp(T)函数构造
+    /// # 参数
+    /// - `molecular_weight`: 摩尔质量(单位kg/kmol) 注意此处不是国际单位制
+    /// - `cp`: 定压比热容(单位J/(kg·K)) 常数
     pub fn from_mw_cp(molecular_weight: f64, cp: f64) -> Self {
         Self {
             molecular_weight,
@@ -53,12 +59,14 @@ impl Material {
         }
     }
 
-    // 通过 Rg 和 gamma 构造（假设 Cp 是常数）
+    /// 用气体常数和比热比构造
+    /// # 参数
+    /// - `r_gas`: 气体常数
+    /// - `gamma`: 比热比
     pub fn from_rgas_gamma(r_gas: f64, gamma: f64) -> Self {
-        let cp = gamma / (gamma - 1.0) * r_gas;
         Self::new(
             Self::GAS_CONSTANT / r_gas * 1e3, // kg/kmol
-            move |_t| cp,
+            move |_| gamma / (gamma - 1.0) * r_gas,
         )
     }
 

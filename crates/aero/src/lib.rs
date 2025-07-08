@@ -1,1 +1,3 @@
-pub mod material;
+mod material;
+
+pub use material::Material;
