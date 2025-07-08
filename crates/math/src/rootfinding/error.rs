@@ -4,6 +4,7 @@ use std::fmt::Display;
 pub enum RootFindingError {
     FunctionNotBracketed,
     MaxIterationsExceeded,
+    InvalidInterval,
 }
 
 impl Display for RootFindingError {
@@ -11,6 +12,7 @@ impl Display for RootFindingError {
         match self {
             RootFindingError::FunctionNotBracketed => write!(f, "Function Not Bracketed"),
             RootFindingError::MaxIterationsExceeded => write!(f, "Max Iterations Exceeded"),
+            RootFindingError::InvalidInterval => write!(f, "Invalid Interval"),
         }
     }
 }

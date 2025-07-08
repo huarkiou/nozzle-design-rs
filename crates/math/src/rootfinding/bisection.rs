@@ -1,13 +1,6 @@
 use crate::rootfinding::{RootBracket, RootFindingError};
 
-/// TOMS748 一维方程求根算法，返回包含根的区间信息结构体
-///
-/// # 参数
-/// - `a`, `b`: 初始区间，要求函数f在区间端点的函数值符号相反
-/// - `f`: 连续函数
-/// - `abs_tol`: 绝对误差容限
-/// - `rel_tol`: 相对误差容限
-/// - `max_iter`: 最大迭代次数
+/// 二分搜索法查找函数根
 pub fn solve_bracket<F>(
     a: f64,
     b: f64,
@@ -19,7 +12,7 @@ pub fn solve_bracket<F>(
 where
     F: Fn(f64) -> f64,
 {
-    if a > b {
+    if a >= b {
         return Err(RootFindingError::InvalidInterval);
     }
 
@@ -55,124 +48,45 @@ where
         });
     }
 
-    // 保证 fa <= 0 <= fb
-    if f_left > 0.0 {
-        std::mem::swap(&mut left, &mut right);
-        std::mem::swap(&mut f_left, &mut f_right);
-    }
+    let mut iter = 0;
 
-    let mut c = left;
-    let mut fc = f_left;
-    let mut iterations = 0;
+    while (right - left).abs() > abs_tol + rel_tol * (left.abs() + right.abs()) / 2.0
+        && iter < max_iter
+    {
+        let mid = (left + right) / 2.0;
+        let f_mid = f(mid);
 
-    for _ in 0..max_iter {
-        iterations += 1;
-
-        let m = 0.5 * (left + right);
-        let tol = rel_tol * (right - left).abs() + abs_tol;
-
-        if (right - left).abs() < 2.0 * tol {
+        if f_mid == 0.0 {
             return Ok(RootBracket {
-                a: left,
-                b: right,
-                fa: f_left,
-                fb: f_right,
-                iterations,
+                a: mid,
+                b: mid,
+                fa: f_mid,
+                fb: f_mid,
+                iterations: iter + 1,
                 converged: true,
             });
         }
 
-        // IQI 插值尝试
-        if f_left != f_right && f_left != fc && f_right != fc {
-            let q = f_left / f_right;
-            let r = fc / f_right;
-            let s = fc / f_left;
-
-            let p1 = r * (r - q) * (left - m) + (1.0 - q) * r * (c - m);
-            let q_val = (r - 1.0) * (q - 1.0) * (s - 1.0);
-
-            if q_val != 0.0 {
-                let s_iqi = m + p1 / q_val;
-
-                if (s_iqi - left) * (s_iqi - right) < 0.0 {
-                    let fs = f(s_iqi);
-                    if fs == 0.0 {
-                        return Ok(RootBracket {
-                            a: s_iqi,
-                            b: s_iqi,
-                            fa: 0.0,
-                            fb: 0.0,
-                            iterations,
-                            converged: true,
-                        });
-                    }
-                    if fs.signum() == f_left.signum() {
-                        left = s_iqi;
-                        f_left = fs;
-                    } else {
-                        right = s_iqi;
-                        f_right = fs;
-                    }
-                    c = m;
-                    fc = f(c);
-                    continue;
-                }
-            }
-        }
-
-        // 割线法尝试
-        let s_sec = right - f_right * (right - left) / (f_right - f_left);
-        if (s_sec - left) * (s_sec - right) < 0.0 {
-            let fs = f(s_sec);
-            if fs == 0.0 {
-                return Ok(RootBracket {
-                    a: s_sec,
-                    b: s_sec,
-                    fa: 0.0,
-                    fb: 0.0,
-                    iterations,
-                    converged: true,
-                });
-            }
-            if fs.signum() == f_left.signum() {
-                left = s_sec;
-                f_left = fs;
-            } else {
-                right = s_sec;
-                f_right = fs;
-            }
+        if f_left * f_mid < 0.0 {
+            right = mid;
+            f_right = f_mid;
         } else {
-            // 回退到二分法
-            let s_bi = 0.5 * (left + right);
-            let fs = f(s_bi);
-            if fs == 0.0 {
-                return Ok(RootBracket {
-                    a: s_bi,
-                    b: s_bi,
-                    fa: 0.0,
-                    fb: 0.0,
-                    iterations,
-                    converged: true,
-                });
-            }
-            if fs.signum() == f_left.signum() {
-                left = s_bi;
-                f_left = fs;
-            } else {
-                right = s_bi;
-                f_right = fs;
-            }
+            left = mid;
+            f_left = f_mid;
         }
+
+        iter += 1;
     }
 
-    // 达到最大迭代次数，仍返回当前区间
+    let converged = iter < max_iter;
+
     Ok(RootBracket {
         a: left,
         b: right,
         fa: f_left,
         fb: f_right,
-        iterations,
-        converged: false,
+        iterations: iter,
+        converged,
     })
 }
 
