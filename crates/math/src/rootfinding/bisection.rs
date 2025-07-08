@@ -7,8 +7,10 @@ where
     T: Num + ToPrimitive,
 {
     assert!(ndivide >= 2);
-    let ret =
-        ((interval / tol).to_f64().unwrap().log2() / (ndivide as f64).log2()).round() as usize + 1;
+    let ret = ((interval.to_f64().unwrap() / tol.to_f64().unwrap()).log2()
+        / (ndivide as f64).log2())
+    .round() as usize
+        + 1;
     if ret < 1 { 1 } else { ret }
 }
 
