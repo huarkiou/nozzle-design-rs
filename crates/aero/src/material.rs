@@ -7,7 +7,7 @@ pub enum Cp {
 }
 
 impl Cp {
-    pub fn get(&self, temperature: f64) -> f64 {
+    pub fn eval(&self, temperature: f64) -> f64 {
         match self {
             Cp::Constant(v) => *v,
             Cp::Variable(f) => f(temperature),
@@ -64,7 +64,7 @@ impl Material {
 
     // 获取 Cp 值（在给定温度下）
     pub fn cp(&self, temperature: f64) -> f64 {
-        self.cp.get(temperature)
+        self.cp.eval(temperature)
     }
 
     // 比热比 gamma，默认使用 Cp 计算 Cv = Cp - Rgas
