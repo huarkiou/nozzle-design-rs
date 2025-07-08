@@ -1,8 +1,14 @@
+use num_traits::{Num, ToPrimitive};
+
 use crate::rootfinding::{RootBracket, RootFindingError};
 
-pub fn max_iterations(interval: f64, tol: f64, ndivide: usize) -> usize {
+pub fn max_iterations<T>(interval: T, tol: T, ndivide: usize) -> usize
+where
+    T: Num + ToPrimitive,
+{
     assert!(ndivide >= 2);
-    let ret = ((interval / tol).log2() / (ndivide as f64).log2()).round() as usize + 1;
+    let ret =
+        ((interval / tol).to_f64().unwrap().log2() / (ndivide as f64).log2()).round() as usize + 1;
     if ret < 1 { 1 } else { ret }
 }
 
@@ -106,8 +112,10 @@ mod tests {
 
     #[test]
     fn test_max_iterations_predict() {
-        let n = max_iterations((10 - 1) as f64, 1 as f64, 2);
-        assert_eq!(n, 4);
+        let n1 = max_iterations(10 - 1, 1, 2);
+        assert_eq!(n1, 4);
+        let n2 = max_iterations(9.2, 1.01, 2);
+        assert_eq!(n2, 4);
     }
 
     #[test]
