@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "nozzle-design-rs"
+name = "math"
 version = "0.1.0"
