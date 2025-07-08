@@ -205,6 +205,17 @@ mod tests {
     }
 
     #[test]
+    fn test_convergence_failure() {
+        let f = |x: f64| x.powi(3) - 2.0 * x - 5.0;
+
+        // 设置 max_iter = 3，强制无法收敛
+        let result = solve_bracket(2.0, 3.0, &f, 1e-12, 1e-12, 3);
+        let root_bracket = result.unwrap();
+        assert!(!root_bracket.is_converged());
+        assert!(root_bracket.has_root());
+    }
+
+    #[test]
     fn test_cos_x_equals_x() {
         let f = |x: f64| x.cos() - x;
         let result = solve_bracket(0.0, 1.0, &f, ABS_TOL, REL_TOL, MAX_ITER).unwrap();
