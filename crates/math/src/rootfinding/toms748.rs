@@ -185,6 +185,26 @@ mod tests {
     const MAX_ITER: usize = 100;
 
     #[test]
+    fn test_invalid_interval() {
+        let f = |x: f64| x * x - 1.0;
+
+        // a > b
+        let result = solve_bracket(2.0, 1.0, &f, 1e-8, 1e-8, 100);
+        assert!(matches!(result, Err(RootFindingError::InvalidInterval)));
+    }
+
+    #[test]
+    fn test_function_not_bracketed() {
+        let f = |x: f64| x * x + 1.0; // 没有实数根，f(x) > 0 always
+
+        let result = solve_bracket(0.0, 2.0, &f, 1e-8, 1e-8, 100);
+        assert!(matches!(
+            result,
+            Err(RootFindingError::FunctionNotBracketed)
+        ));
+    }
+
+    #[test]
     fn test_cos_x_equals_x() {
         let f = |x: f64| x.cos() - x;
         let result = solve_bracket(0.0, 1.0, &f, ABS_TOL, REL_TOL, MAX_ITER).unwrap();
