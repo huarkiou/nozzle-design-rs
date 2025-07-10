@@ -1,2 +1,2 @@
-pub mod rootfinding;
 pub mod quadrature;
+pub mod rootfinding;
