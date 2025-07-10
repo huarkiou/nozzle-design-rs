@@ -3,6 +3,9 @@ name: BuildTest
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - 'readme.md'
+      - '.gitignore'
   pull_request:
     branches: [ "main" ]
 
@@ -16,6 +19,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Check code style
+      run: cargo fmt --check
     - name: Build
       run: cargo build --verbose
     - name: Run tests
