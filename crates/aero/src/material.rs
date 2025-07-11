@@ -32,7 +32,7 @@ pub struct Material {
 
 impl Material {
     // 常量定义为 associated constants
-    pub const GAS_CONSTANT: f64 = 8.31446261815324; // J/(mol·K) R = N_A * k
+    pub const UNIVERSAL_GAS_CONSTANT: f64 = 8.31446261815324; // J/(mol·K) R = N_A * k
     pub const AVOGADRO_CONSTANT: f64 = 6.02214076e23; // mol⁻¹
     pub const BOLTZMANN_CONSTANT: f64 = 1.380649e-23; // J/K
     pub const SPEED_OF_LIGHT: f64 = 299792458.0; // m/s
@@ -65,7 +65,7 @@ impl Material {
     /// - `gamma`: 比热比
     pub fn from_rgas_gamma(r_gas: f64, gamma: f64) -> Self {
         Self::new(
-            Self::GAS_CONSTANT / r_gas * 1e3, // kg/kmol
+            Self::UNIVERSAL_GAS_CONSTANT / r_gas * 1e3, // kg/kmol
             move |_| gamma / (gamma - 1.0) * r_gas,
         )
     }
@@ -84,7 +84,7 @@ impl Material {
 
     // 气体常数 Rgas = R / Mw （单位：J/(kg·K)）
     pub fn rgas(&self) -> f64 {
-        Self::GAS_CONSTANT / self.molecular_weight * 1e3
+        Self::UNIVERSAL_GAS_CONSTANT / self.molecular_weight * 1e3
     }
 
     // 焓值 h(T)，参考点默认为 T_ref = 0.0
