@@ -5,6 +5,7 @@ use std::{
 
 use crate::Material;
 
+/// 特征线网格上的网格点
 #[derive(Clone)]
 pub struct MocPoint {
     /// x坐标 单位：m
