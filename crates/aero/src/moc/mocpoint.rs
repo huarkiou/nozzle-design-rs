@@ -5,6 +5,7 @@ use std::{
 
 use crate::Material;
 
+#[derive(Clone)]
 pub struct MocPoint {
     /// x坐标 单位：m
     pub x: f64,
