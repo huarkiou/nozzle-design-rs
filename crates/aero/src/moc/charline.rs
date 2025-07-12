@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::moc::MocPoint;
 
+/// 一条特征线上所有MocPoint的集合
 #[derive(Clone)]
 pub struct CharLine {
     data: Vec<MocPoint>,
