@@ -9,6 +9,20 @@ pub struct CharLine {
     data: Vec<MocPoint>,
 }
 
+impl Deref for CharLine {
+    type Target = Vec<MocPoint>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl DerefMut for CharLine {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
 impl CharLine {
     pub fn new() -> Self {
         Self { data: Vec::new() }
@@ -152,20 +166,6 @@ impl CharLine {
             }
         }
         ret
-    }
-}
-
-impl Deref for CharLine {
-    type Target = Vec<MocPoint>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl DerefMut for CharLine {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.data
     }
 }
 
