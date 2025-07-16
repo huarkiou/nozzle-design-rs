@@ -218,8 +218,17 @@ impl Display for MocPoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}",
-            self.x, self.y, self.u, self.v, self.p, self.t, self.rho, self.gamma, self.rg
+            "{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}",
+            self.x,
+            self.y,
+            self.velocity(),
+            self.flow_direction(),
+            self.p,
+            self.rho,
+            self.t,
+            self.rg,
+            self.gamma,
+            self.mach_number()
         )
     }
 }
