@@ -36,6 +36,7 @@ pub struct GeneralConfig {
 /// - `u:f64`, `v:f64`: 待求点气流在x和y方向的速度u, v
 pub type ExitLineFunc = Box<dyn Fn(f64, MocPoint) -> (f64, f64)>;
 
+/// 特征线法基本计算过程
 pub trait UnitProcess {
     /// 求解流场内点
     ///
