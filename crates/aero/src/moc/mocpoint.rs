@@ -5,7 +5,7 @@ use std::{
 
 use crate::Material;
 
-/// 特征线网格上的网格点
+/// 描述超声速流场中的任一点的气流参数
 #[derive(Clone)]
 pub struct MocPoint {
     /// x坐标 单位：m
