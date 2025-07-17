@@ -283,38 +283,38 @@ impl Sub for MocPoint {
     }
 }
 
-impl Mul for MocPoint {
+impl Mul<f64> for MocPoint {
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: f64) -> Self::Output {
         Self::Output {
-            x: self.x * rhs.x,
-            y: self.y * rhs.y,
-            u: self.u * rhs.u,
-            v: self.v * rhs.v,
-            p: self.p * rhs.p,
-            t: self.t * rhs.t,
-            rho: self.rho * rhs.rho,
-            gamma: self.gamma * rhs.gamma,
-            rg: self.rg * rhs.rg,
+            x: self.x * rhs,
+            y: self.y * rhs,
+            u: self.u * rhs,
+            v: self.v * rhs,
+            p: self.p * rhs,
+            t: self.t * rhs,
+            rho: self.rho * rhs,
+            gamma: self.gamma * rhs,
+            rg: self.rg * rhs,
         }
     }
 }
 
-impl Div for MocPoint {
+impl Div<f64> for MocPoint {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
+    fn div(self, rhs: f64) -> Self::Output {
         Self::Output {
-            x: self.x / rhs.x,
-            y: self.y / rhs.y,
-            u: self.u / rhs.u,
-            v: self.v / rhs.v,
-            p: self.p / rhs.p,
-            t: self.t / rhs.t,
-            rho: self.rho / rhs.rho,
-            gamma: self.gamma / rhs.gamma,
-            rg: self.rg / rhs.rg,
+            x: self.x / rhs,
+            y: self.y / rhs,
+            u: self.u / rhs,
+            v: self.v / rhs,
+            p: self.p / rhs,
+            t: self.t / rhs,
+            rho: self.rho / rhs,
+            gamma: self.gamma / rhs,
+            rg: self.rg / rhs,
         }
     }
 }
