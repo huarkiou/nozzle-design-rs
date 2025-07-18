@@ -34,6 +34,7 @@ pub fn cal_static_temperature_pressure_density(
     tps: (f64, f64, f64),
     ma: f64,
 ) -> (f64, f64, f64) {
+    assert!(gamma > 1.0, "gamma cannot be less than 1.0");
     let (t_total, p_total, rho_total) = tps;
     let sub_exp1 = 1.0 + (gamma - 1.0) / 2.0 * ma.powi(2);
     let sub_exp2 = 1. / (gamma - 1.);
