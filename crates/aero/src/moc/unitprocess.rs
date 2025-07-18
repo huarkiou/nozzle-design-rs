@@ -2,7 +2,7 @@ mod irrotational;
 mod rotational;
 
 pub use irrotational::Irrotational;
-pub use rotational::Rotational;
+// pub use rotational::Rotational;
 
 use crate::moc::{CharLine, MocPoint};
 
