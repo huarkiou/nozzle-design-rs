@@ -3,6 +3,8 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
+use math::Tolerance;
+
 use crate::{Material, isentropic};
 
 /// 描述超声速流场中的任一点的气流参数
@@ -28,7 +30,32 @@ pub struct MocPoint {
     pub rg: f64,
 }
 
+// 构造方法
 impl MocPoint {
+    pub fn new(
+        x: f64,
+        y: f64,
+        u: f64,
+        v: f64,
+        p: f64,
+        t: f64,
+        rho: f64,
+        gamma: f64,
+        rg: f64,
+    ) -> Self {
+        Self {
+            x,
+            y,
+            u,
+            v,
+            p,
+            t,
+            rho,
+            gamma,
+            rg,
+        }
+    }
+
     pub fn from_compatible(
         x: f64,
         y: f64,
@@ -46,19 +73,36 @@ impl MocPoint {
             (u.powi(2) + v.powi(2)).sqrt(),
         );
         Self {
-            x: x,
-            y: y,
-            u: u,
-            v: v,
-            p: p,
-            t: t,
-            rho: rho,
-            gamma: gamma,
-            rg: rg,
+            x,
+            y,
+            u,
+            v,
+            p,
+            t,
+            rho,
+            gamma,
+            rg,
         }
     }
 }
 
+// 设置方法
+impl MocPoint {
+    pub fn set_temperature_pressure_density(&mut self, t_total: f64, p_total: f64, rho_total: f64) {
+        let cp = isentropic::cal_cp(self.gamma, self.rg);
+        let t_static = isentropic::cal_static_temperature(cp, t_total, self.velocity());
+        self.t = t_static;
+
+        let ma = self.mach_number();
+        let sub_exp1 = 1.0 + (self.gamma - 1.0) / 2.0 * ma.powi(2);
+        let sub_exp2 = 1. / (self.gamma - 1.);
+
+        self.p = p_total / sub_exp1.powf(self.gamma * sub_exp2);
+        self.rho = rho_total / sub_exp1.powf(sub_exp2);
+    }
+}
+
+// 计算和获取气流参数
 impl MocPoint {
     /// 该点到另一点的距离的平方 单位：m^2
     pub fn distance_squared_to(&self, other: Self) -> f64 {
@@ -147,6 +191,7 @@ impl MocPoint {
     }
 }
 
+// 坐标判断
 impl MocPoint {
     /// 判断当前点是否在 point1 和 point2 构成的轴对齐矩形包围盒内（考虑浮点误差）
     pub fn is_between(&self, point1: &Self, point2: &Self, eps: f64) -> bool {
@@ -176,32 +221,32 @@ impl MocPoint {
     }
 }
 
+// 收敛判断
 impl MocPoint {
     // 注意：is_*_converged_with()系列函数依赖 IEEE-754 浮点运算语义。
     // 若启用了 fast-math 编译选项（如 RUSTFLAGS="-C fast-math"），
     // 则可能导致 NaN 比较行为异常，从而影响收敛判断。
 
     /// 坐标(x,y)是否收敛
-    pub fn is_position_converged_with(&self, other: &Self, tol: f64) -> bool {
-        (self.x - other.x).abs() < tol && (self.y - other.y).abs() < tol
+    pub fn is_position_converged_with(&self, other: &Self, tol: Tolerance) -> bool {
+        tol.approx_eq(self.x, other.x) && tol.approx_eq(self.y, other.y)
     }
 
     /// 速度(u,v)是否收敛
-    pub fn is_velocity_converged_with(&self, other: &Self, rel: f64) -> bool {
-        (self.u - other.u).abs() < rel * self.u.abs()
-            && (self.v - other.v).abs() < rel * self.v.abs()
+    pub fn is_velocity_converged_with(&self, other: &Self, tol: Tolerance) -> bool {
+        tol.approx_eq(self.u, other.u) && tol.approx_eq(self.v, self.v)
     }
 
     /// 所有参数是否收敛
-    pub fn is_converged_with(&self, other: &Self, eps: f64) -> bool {
+    pub fn is_converged_with(&self, other: &Self, tol: Tolerance) -> bool {
         // 注意：Rust 中 NaN != NaN，所以 (a - b).abs() < eps 会正确返回 false 如果任意是 NaN
-        self.is_position_converged_with(other, eps)
-            && self.is_velocity_converged_with(other, eps)
-            && (self.p - other.p).abs() < eps * self.p.abs()
-            && (self.t - other.t).abs() < eps * self.t.abs()
-            && (self.rho - other.rho).abs() < eps * self.rho.abs()
-            && (self.gamma - other.gamma).abs() < eps * self.gamma.abs()
-            && (self.rg - other.rg).abs() < eps * self.rg.abs()
+        self.is_position_converged_with(other, tol)
+            && self.is_velocity_converged_with(other, tol)
+            && tol.approx_eq(self.p, other.p)
+            && tol.approx_eq(self.t, other.t)
+            && tol.approx_eq(self.rho, other.rho)
+            && tol.approx_eq(self.gamma, other.gamma)
+            && tol.approx_eq(self.rg, other.rg)
     }
 
     /// 坐标(x,y)是否有效

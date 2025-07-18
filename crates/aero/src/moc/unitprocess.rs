@@ -2,6 +2,7 @@ mod irrotational;
 mod rotational;
 
 pub use irrotational::Irrotational;
+use math::Tolerance;
 // pub use rotational::Rotational;
 
 use crate::moc::{CharLine, MocPoint};
@@ -23,7 +24,7 @@ pub struct GeneralConfig {
     /// 轴对称/二维平面
     pub axisym: bool,
     /// 容差
-    pub tol: f64,
+    pub tol: Tolerance,
     /// 最大预估校正次数
     pub n_corr: u16,
 }
