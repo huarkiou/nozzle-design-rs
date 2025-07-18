@@ -1,4 +1,3 @@
-use crate::isentropic;
 use crate::moc::{
     MocPoint,
     unitprocess::{Context, ExitLineFunc, GeneralConfig, UnitProcess},
