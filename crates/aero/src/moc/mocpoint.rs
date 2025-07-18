@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use crate::Material;
+use crate::{Material, isentropic};
 
 /// 描述超声速流场中的任一点的气流参数
 #[derive(Clone)]
@@ -26,6 +26,37 @@ pub struct MocPoint {
     pub gamma: f64,
     /// 气体常数 单位：J/(mol·K)
     pub rg: f64,
+}
+
+impl MocPoint {
+    pub fn from_compatible(
+        x: f64,
+        y: f64,
+        u: f64,
+        v: f64,
+        p: f64,
+        t_total: f64,
+        rho: f64,
+        gamma: f64,
+        rg: f64,
+    ) -> Self {
+        let t = isentropic::cal_static_temperature(
+            isentropic::cal_cp(gamma, rg),
+            t_total,
+            (u.powi(2) + v.powi(2)).sqrt(),
+        );
+        Self {
+            x: x,
+            y: y,
+            u: u,
+            v: v,
+            p: p,
+            t: t,
+            rho: rho,
+            gamma: gamma,
+            rg: rg,
+        }
+    }
 }
 
 impl MocPoint {
