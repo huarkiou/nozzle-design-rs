@@ -2,6 +2,10 @@ pub fn cal_cp(gamma: f64, rg: f64) -> f64 {
     rg / (1. - 1. / gamma)
 }
 
+pub fn cal_cv(gamma: f64, rg: f64) -> f64 {
+    rg / (gamma - 1.0)
+}
+
 pub fn cal_total_temperature(cp: f64, t_static: f64, velocity: f64) -> f64 {
     t_static + velocity.powi(2) / (2. * cp)
 }
@@ -31,11 +35,12 @@ pub fn cal_static_temperature_pressure_density(
     ma: f64,
 ) -> (f64, f64, f64) {
     let (t_total, p_total, rho_total) = tps;
-    let tmp = 1.0 + (gamma - 1.0) / 2.0 * ma * ma;
+    let sub_exp1 = 1.0 + (gamma - 1.0) / 2.0 * ma.powi(2);
+    let sub_exp2 = 1. / (gamma - 1.);
 
-    let p_static = p_total / tmp.powf(gamma / (gamma - 1.0));
-    let t_static = t_total / tmp;
-    let rho_static = rho_total / tmp.powf(1.0 / (gamma - 1.0));
+    let p_static = p_total / sub_exp1.powf(gamma * sub_exp2);
+    let t_static = t_total / sub_exp1;
+    let rho_static = rho_total / sub_exp1.powf(sub_exp2);
 
     (t_static, p_static, rho_static)
 }
@@ -61,11 +66,12 @@ pub fn cal_total_temperature_pressure_density(
     ma: f64,
 ) -> (f64, f64, f64) {
     let (t_static, p_static, rho_static) = sps;
-    let tmp = 1.0 + (gamma - 1.0) / 2.0 * ma * ma;
+    let sub_exp1 = 1.0 + (gamma - 1.0) / 2.0 * ma * ma;
+    let sub_exp2 = 1.0 / (gamma - 1.0);
 
-    let p_total = p_static * tmp.powf(gamma / (gamma - 1.0));
-    let t_total = t_static * tmp;
-    let rho_total = rho_static * tmp.powf(1.0 / (gamma - 1.0));
+    let p_total = p_static * sub_exp1.powf(gamma * sub_exp2);
+    let t_total = t_static * sub_exp1;
+    let rho_total = rho_static * sub_exp1.powf(sub_exp2);
 
     (t_total, p_total, rho_total)
 }
