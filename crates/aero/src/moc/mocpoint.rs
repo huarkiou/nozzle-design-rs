@@ -265,8 +265,44 @@ impl Add for MocPoint {
     }
 }
 
+impl Add for &MocPoint {
+    type Output = MocPoint;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            u: self.u + rhs.u,
+            v: self.v + rhs.v,
+            p: self.p + rhs.p,
+            t: self.t + rhs.t,
+            rho: self.rho + rhs.rho,
+            gamma: self.gamma + rhs.gamma,
+            rg: self.rg + rhs.rg,
+        }
+    }
+}
+
 impl Sub for MocPoint {
     type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            u: self.u - rhs.u,
+            v: self.v - rhs.v,
+            p: self.p - rhs.p,
+            t: self.t - rhs.t,
+            rho: self.rho - rhs.rho,
+            gamma: self.gamma - rhs.gamma,
+            rg: self.rg - rhs.rg,
+        }
+    }
+}
+
+impl Sub for &MocPoint {
+    type Output = MocPoint;
 
     fn sub(self, rhs: Self) -> Self::Output {
         Self::Output {
@@ -301,8 +337,44 @@ impl Mul<f64> for MocPoint {
     }
 }
 
+impl Mul<f64> for &MocPoint {
+    type Output = MocPoint;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self::Output {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            u: self.u * rhs,
+            v: self.v * rhs,
+            p: self.p * rhs,
+            t: self.t * rhs,
+            rho: self.rho * rhs,
+            gamma: self.gamma * rhs,
+            rg: self.rg * rhs,
+        }
+    }
+}
+
 impl Div<f64> for MocPoint {
     type Output = Self;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::Output {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            u: self.u / rhs,
+            v: self.v / rhs,
+            p: self.p / rhs,
+            t: self.t / rhs,
+            rho: self.rho / rhs,
+            gamma: self.gamma / rhs,
+            rg: self.rg / rhs,
+        }
+    }
+}
+
+impl Div<f64> for &MocPoint {
+    type Output = MocPoint;
 
     fn div(self, rhs: f64) -> Self::Output {
         Self::Output {
