@@ -5,7 +5,7 @@ use crate::moc::{
 
 /// 无旋特征线法的基本计算过程
 pub struct Irrotational {
-    conf: GeneralConfig,
+    pub conf: GeneralConfig,
 }
 
 impl Irrotational {
