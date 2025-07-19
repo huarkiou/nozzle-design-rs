@@ -1,12 +1,29 @@
+use std::sync::Arc;
+
 use math::quadrature;
 
 // 热容类型枚举
+#[derive(Clone)]
 pub enum Cp {
     Constant(f64),
-    Variable(Box<dyn Fn(f64) -> f64>),
+    Variable(Arc<dyn Fn(f64) -> f64>),
+}
+
+impl PartialEq for Cp {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Constant(l0), Self::Constant(r0)) => l0 == r0,
+            (Self::Variable(l0), Self::Variable(r0)) => Arc::ptr_eq(l0, r0),
+            _ => false,
+        }
+    }
 }
 
 impl Cp {
+    pub fn new(cp: impl Fn(f64) -> f64 + 'static) -> Self {
+        Self::Variable(Arc::new(cp))
+    }
+
     pub fn eval(&self, temperature: f64) -> f64 {
         match self {
             Cp::Constant(v) => *v,
@@ -22,6 +39,7 @@ impl Into<Cp> for f64 {
 }
 
 // MaterialProperty 结构体定义
+#[derive(Clone)]
 pub struct Material {
     /// 摩尔质量 (kg/kmol)
     molecular_weight: f64,
@@ -30,9 +48,19 @@ pub struct Material {
     cp: Cp,
 }
 
+impl PartialEq for Material {
+    fn eq(&self, other: &Self) -> bool {
+        self.molecular_weight == other.molecular_weight && self.cp == other.cp
+    }
+}
+
 impl Material {
     pub fn borrow_cp(&self) -> &Cp {
         &self.cp
+    }
+
+    pub fn borrom_mw(&self) -> &f64 {
+        &self.molecular_weight
     }
 }
 
@@ -50,7 +78,7 @@ impl Material {
     pub fn new(molecular_weight: f64, cp: impl Fn(f64) -> f64 + 'static) -> Self {
         Self {
             molecular_weight,
-            cp: (Cp::Variable(Box::new(cp))),
+            cp: (Cp::new(cp)),
         }
     }
 

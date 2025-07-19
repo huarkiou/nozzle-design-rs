@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use aero::{
     Material,
     moc::{
@@ -18,11 +16,11 @@ fn test_interior_point_1() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
-    // let mat = Arc::new(Material::new(
+    let mat = Material::from_rgas_gamma(320.0, 1.2);
+    // let mat = Material::new(
     //     Material::UNIVERSAL_GAS_CONSTANT / 320.0 * 1e3,
     //     |_| 320. * 1.2 / (1.2 - 1.0),
-    // ));
+    // );
 
     // 构造两个输入点
     let p1 = MocPoint::from_compatible(
@@ -94,11 +92,11 @@ fn test_interior_point_2() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Arc::new(Material::from_rgas_gamma(287.042, 1.4));
-    // let mat = Arc::new(Material::new(
+    let mat = Material::from_rgas_gamma(287.042, 1.4);
+    // let mat = Material::new(
     //     Material::UNIVERSAL_GAS_CONSTANT / 287.042 * 1e3,
     //     |_| 287.042 * 1.4 / (1.4 - 1.0),
-    // ));
+    // );
 
     // 构造两个输入点
     let velocity = 1948.3337719140004_f64;

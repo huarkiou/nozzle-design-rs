@@ -171,8 +171,6 @@ impl CharLine {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
-
     use crate::Material;
 
     use super::*;
@@ -196,7 +194,7 @@ mod test {
             p: 101325.0,
             t: 298.0,
             rho: 1.225,
-            mat: Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+            mat: Material::from_rgas_gamma(287.0, 1.4),
         }];
         let mfr_single = CharLine::mass_flow_rate(&single_point, AreaType::Axisymmetric);
         assert_eq!(mfr_single, 0.0);
@@ -213,7 +211,7 @@ mod test {
                 p: 101325.0,
                 t: 298.0,
                 rho: 1.225,
-                mat: Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+                mat: Material::from_rgas_gamma(287.0, 1.4),
             },
             MocPoint {
                 x: 1.0,
@@ -223,7 +221,7 @@ mod test {
                 p: 101325.0,
                 t: 298.0,
                 rho: 1.225,
-                mat: Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+                mat: Material::from_rgas_gamma(287.0, 1.4),
             },
         ];
 
@@ -249,7 +247,7 @@ mod test {
                 p: 101325.0,
                 t: 298.0,
                 rho: 1.225,
-                mat: Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+                mat: Material::from_rgas_gamma(287.0, 1.4),
             },
             MocPoint {
                 x: 1.0,
@@ -259,7 +257,7 @@ mod test {
                 p: 101325.0,
                 t: 298.0,
                 rho: 1.225,
-                mat: Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+                mat: Material::from_rgas_gamma(287.0, 1.4),
             },
         ];
 
