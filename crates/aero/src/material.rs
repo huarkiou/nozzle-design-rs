@@ -31,6 +31,12 @@ pub struct Material {
 }
 
 impl Material {
+    pub fn borrow_cp(&self) -> &Cp {
+        &self.cp
+    }
+}
+
+impl Material {
     // 常量定义为 associated constants
     pub const UNIVERSAL_GAS_CONSTANT: f64 = 8.31446261815324; // J/(mol·K) R = N_A * k
     pub const AVOGADRO_CONSTANT: f64 = 6.02214076e23; // mol⁻¹
@@ -64,10 +70,10 @@ impl Material {
     /// - `r_gas`: 气体常数
     /// - `gamma`: 比热比
     pub fn from_rgas_gamma(r_gas: f64, gamma: f64) -> Self {
-        Self::new(
-            Self::UNIVERSAL_GAS_CONSTANT / r_gas * 1e3, // kg/kmol
-            move |_| gamma / (gamma - 1.0) * r_gas,
-        )
+        Self {
+            molecular_weight: Self::UNIVERSAL_GAS_CONSTANT / r_gas * 1e3, // kg/kmol
+            cp: Cp::Constant(gamma / (gamma - 1.0) * r_gas),
+        }
     }
 
     // 获取 Cp 值（在给定温度下）
