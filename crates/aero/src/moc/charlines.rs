@@ -3,9 +3,13 @@ use std::{
     io::{BufRead, BufReader, BufWriter, Write},
     ops::{Deref, DerefMut},
     path::Path,
+    sync::Arc,
 };
 
-use crate::moc::{CharLine, MocPoint};
+use crate::{
+    Material,
+    moc::{CharLine, MocPoint},
+};
 
 #[derive(Clone)]
 pub struct CharLines {
@@ -106,8 +110,7 @@ pub fn read_charlines_from_file<P: AsRef<Path>>(filepath: P) -> std::io::Result<
                         p: vals[4],
                         rho: vals[5],
                         t: vals[6],
-                        rg: vals[7],
-                        gamma: vals[8],
+                        mat: Arc::new(Material::from_rgas_gamma(vals[7], vals[8])),
                     };
                     current_line.push(point);
                 }

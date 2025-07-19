@@ -1,6 +1,7 @@
 use std::{
     fmt::Display,
     ops::{Add, Div, Mul, Sub},
+    sync::Arc,
 };
 
 use math::Tolerance;
@@ -24,10 +25,8 @@ pub struct MocPoint {
     pub t: f64,
     /// 静密度 单位：kg/m^3
     pub rho: f64,
-    /// 比热比 单位：1
-    pub gamma: f64,
-    /// 气体常数 单位：J/(mol·K)
-    pub rg: f64,
+    /// 物性参数
+    pub mat: Arc<Material>,
 }
 
 // 构造方法
@@ -40,8 +39,7 @@ impl MocPoint {
         p: f64,
         t: f64,
         rho: f64,
-        gamma: f64,
-        rg: f64,
+        mat: Arc<Material>,
     ) -> Self {
         Self {
             x,
@@ -51,8 +49,7 @@ impl MocPoint {
             p,
             t,
             rho,
-            gamma,
-            rg,
+            mat,
         }
     }
 
@@ -64,11 +61,10 @@ impl MocPoint {
         p: f64,
         t_total: f64,
         rho: f64,
-        gamma: f64,
-        rg: f64,
+        mat: Arc<Material>,
     ) -> Self {
         let t = isentropic::cal_static_temperature(
-            isentropic::cal_cp(gamma, rg),
+            mat.borrow_cp(),
             t_total,
             (u.powi(2) + v.powi(2)).sqrt(),
         );
@@ -80,8 +76,7 @@ impl MocPoint {
             p,
             t,
             rho,
-            gamma,
-            rg,
+            mat,
         }
     }
 }
@@ -89,25 +84,41 @@ impl MocPoint {
 // 设置方法
 impl MocPoint {
     pub fn set_temperature_pressure_density(&mut self, t_total: f64, p_total: f64, rho_total: f64) {
-        let cp = isentropic::cal_cp(self.gamma, self.rg);
-        let t_static = isentropic::cal_static_temperature(cp, t_total, self.velocity());
+        let t_static =
+            isentropic::cal_static_temperature(self.mat.borrow_cp(), t_total, self.velocity());
         self.t = t_static;
 
         let ma = self.mach_number();
-        let sub_exp1 = 1.0 + (self.gamma - 1.0) / 2.0 * ma.powi(2);
-        let sub_exp2 = 1. / (self.gamma - 1.);
+        let sub_exp1 = 1.0 + (self.gamma(self.t) - 1.0) / 2.0 * ma.powi(2);
+        let sub_exp2 = 1. / (self.gamma(self.t) - 1.);
 
-        self.p = p_total / sub_exp1.powf(self.gamma * sub_exp2);
+        self.p = p_total / sub_exp1.powf(self.gamma(self.t) * sub_exp2);
         self.rho = rho_total / sub_exp1.powf(sub_exp2);
     }
 }
 
 // 计算和获取气流参数
 impl MocPoint {
+    /// 计算比热比
+    pub fn gamma(&self, t: f64) -> f64 {
+        self.mat.gamma(t)
+    }
+
+    /// 气体常数
+    pub fn rg(&self) -> f64 {
+        self.mat.rgas()
+    }
+
+    /// 计算定压比热容Cp 单位：J/(kg·K)
+    pub fn cp(&self, t: f64) -> f64 {
+        self.mat.cp(t)
+    }
+
     /// 该点到另一点的距离的平方 单位：m^2
     pub fn distance_squared_to(&self, other: Self) -> f64 {
         (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
     }
+
     /// 该点到另一点的距离 单位：m
     pub fn distance_to(&self, other: Self) -> f64 {
         self.distance_squared_to(other).sqrt()
@@ -128,14 +139,9 @@ impl MocPoint {
         (self.v / self.u).atan()
     }
 
-    /// 计算定压比热容Cp 单位：J/(kg·K)
-    pub fn cp(&self) -> f64 {
-        self.gamma / (self.gamma - 1.0) * self.rg
-    }
-
     /// 计算声速平方c^2 单位：(m/s)^2
     pub fn sound_speed_squared(&self) -> f64 {
-        self.gamma * self.rg * self.t
+        self.gamma(self.t) * self.rg() * self.t
     }
 
     /// 计算声速c 单位：m/s
@@ -160,21 +166,21 @@ impl MocPoint {
 
     /// 计算总温T* 单位：K
     pub fn total_temperature(&self) -> f64 {
-        return self.t + self.velocity_squared() / (2. * self.cp());
+        return self.t + self.velocity_squared() / (2. * self.cp(self.t));
     }
 
     /// 计算总压p* 单位：Pa
     pub fn total_pressure(&self) -> f64 {
         let ma = self.mach_number();
-        let sub_exp1 = self.gamma - 1.;
+        let sub_exp1 = self.gamma(self.t) - 1.;
         let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
-        return self.p * sub_exp2.powf(self.gamma / sub_exp1);
+        return self.p * sub_exp2.powf(self.gamma(self.t) / sub_exp1);
     }
 
     /// 计算总密度ρ* 单位：kg/m^3
     pub fn total_density(&self) -> f64 {
         let ma = self.mach_number();
-        let sub_exp1 = self.gamma - 1.;
+        let sub_exp1 = self.gamma(self.t) - 1.;
         let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
         return self.rho * sub_exp2.powf(1. / sub_exp1);
     }
@@ -182,10 +188,10 @@ impl MocPoint {
     /// 计算总参数 (总温、总压、总密度)
     pub fn total_temperature_pressure_density(&self) -> (f64, f64, f64) {
         let ma = self.mach_number();
-        let sub_exp1 = self.gamma - 1.;
+        let sub_exp1 = self.gamma(self.t) - 1.;
         let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
-        let tt = self.t + self.velocity_squared() / (2. * self.cp());
-        let tp = self.p * sub_exp2.powf(self.gamma / sub_exp1);
+        let tt = self.t + self.velocity_squared() / (2. * self.cp(self.t));
+        let tp = self.p * sub_exp2.powf(self.gamma(self.t) / sub_exp1);
         let td = self.rho * sub_exp2.powf(1. / sub_exp1);
         (tt, tp, td)
     }
@@ -245,8 +251,6 @@ impl MocPoint {
             && tol.approx_eq(self.p, other.p)
             && tol.approx_eq(self.t, other.t)
             && tol.approx_eq(self.rho, other.rho)
-            && tol.approx_eq(self.gamma, other.gamma)
-            && tol.approx_eq(self.rg, other.rg)
     }
 
     /// 坐标(x,y)是否有效
@@ -261,7 +265,7 @@ impl MocPoint {
 
     /// 材料参数比热比和气体常数是否有效
     pub fn is_material_valid(&self) -> bool {
-        self.gamma > 1. && self.rg > Material::UNIVERSAL_GAS_CONSTANT
+        self.gamma(self.t) > 1. && self.rg() > Material::UNIVERSAL_GAS_CONSTANT
     }
 
     /// 所有参数是否有效
@@ -284,8 +288,7 @@ impl Default for MocPoint {
             p: f64::NAN,
             t: f64::NAN,
             rho: f64::NAN,
-            gamma: f64::NAN,
-            rg: f64::NAN,
+            mat: Arc::new(Material::air_constant()),
         }
     }
 }
@@ -302,8 +305,8 @@ impl Display for MocPoint {
             self.p,
             self.rho,
             self.t,
-            self.rg,
-            self.gamma,
+            self.rg(),
+            self.gamma(self.t),
             self.mach_number()
         )
     }
@@ -318,26 +321,7 @@ impl PartialEq for MocPoint {
             && self.p == other.p
             && self.t == other.t
             && self.rho == other.rho
-            && self.gamma == other.gamma
-            && self.rg == other.rg
-    }
-}
-
-impl Add for MocPoint {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::Output {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            u: self.u + rhs.u,
-            v: self.v + rhs.v,
-            p: self.p + rhs.p,
-            t: self.t + rhs.t,
-            rho: self.rho + rhs.rho,
-            gamma: self.gamma + rhs.gamma,
-            rg: self.rg + rhs.rg,
-        }
+            && Arc::ptr_eq(&self.mat, &other.mat)
     }
 }
 
@@ -353,26 +337,24 @@ impl Add for &MocPoint {
             p: self.p + rhs.p,
             t: self.t + rhs.t,
             rho: self.rho + rhs.rho,
-            gamma: self.gamma + rhs.gamma,
-            rg: self.rg + rhs.rg,
+            mat: self.mat.clone(),
         }
     }
 }
 
-impl Sub for MocPoint {
-    type Output = Self;
+impl Add for MocPoint {
+    type Output = MocPoint;
 
-    fn sub(self, rhs: Self) -> Self::Output {
+    fn add(self, rhs: Self) -> Self::Output {
         Self::Output {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            u: self.u - rhs.u,
-            v: self.v - rhs.v,
-            p: self.p - rhs.p,
-            t: self.t - rhs.t,
-            rho: self.rho - rhs.rho,
-            gamma: self.gamma - rhs.gamma,
-            rg: self.rg - rhs.rg,
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            u: self.u + rhs.u,
+            v: self.v + rhs.v,
+            p: self.p + rhs.p,
+            t: self.t + rhs.t,
+            rho: self.rho + rhs.rho,
+            mat: self.mat.clone(),
         }
     }
 }
@@ -389,26 +371,24 @@ impl Sub for &MocPoint {
             p: self.p - rhs.p,
             t: self.t - rhs.t,
             rho: self.rho - rhs.rho,
-            gamma: self.gamma - rhs.gamma,
-            rg: self.rg - rhs.rg,
+            mat: self.mat.clone(),
         }
     }
 }
 
-impl Mul<f64> for MocPoint {
-    type Output = Self;
+impl Sub for MocPoint {
+    type Output = MocPoint;
 
-    fn mul(self, rhs: f64) -> Self::Output {
+    fn sub(self, rhs: Self) -> Self::Output {
         Self::Output {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            u: self.u * rhs,
-            v: self.v * rhs,
-            p: self.p * rhs,
-            t: self.t * rhs,
-            rho: self.rho * rhs,
-            gamma: self.gamma * rhs,
-            rg: self.rg * rhs,
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            u: self.u - rhs.u,
+            v: self.v - rhs.v,
+            p: self.p - rhs.p,
+            t: self.t - rhs.t,
+            rho: self.rho - rhs.rho,
+            mat: self.mat.clone(),
         }
     }
 }
@@ -425,26 +405,24 @@ impl Mul<f64> for &MocPoint {
             p: self.p * rhs,
             t: self.t * rhs,
             rho: self.rho * rhs,
-            gamma: self.gamma * rhs,
-            rg: self.rg * rhs,
+            mat: self.mat.clone(),
         }
     }
 }
 
-impl Div<f64> for MocPoint {
-    type Output = Self;
+impl Mul<f64> for MocPoint {
+    type Output = MocPoint;
 
-    fn div(self, rhs: f64) -> Self::Output {
+    fn mul(self, rhs: f64) -> Self::Output {
         Self::Output {
-            x: self.x / rhs,
-            y: self.y / rhs,
-            u: self.u / rhs,
-            v: self.v / rhs,
-            p: self.p / rhs,
-            t: self.t / rhs,
-            rho: self.rho / rhs,
-            gamma: self.gamma / rhs,
-            rg: self.rg / rhs,
+            x: self.x * rhs,
+            y: self.y * rhs,
+            u: self.u * rhs,
+            v: self.v * rhs,
+            p: self.p * rhs,
+            t: self.t * rhs,
+            rho: self.rho * rhs,
+            mat: self.mat.clone(),
         }
     }
 }
@@ -461,8 +439,24 @@ impl Div<f64> for &MocPoint {
             p: self.p / rhs,
             t: self.t / rhs,
             rho: self.rho / rhs,
-            gamma: self.gamma / rhs,
-            rg: self.rg / rhs,
+            mat: self.mat.clone(),
+        }
+    }
+}
+
+impl Div<f64> for MocPoint {
+    type Output = MocPoint;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::Output {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            u: self.u / rhs,
+            v: self.v / rhs,
+            p: self.p / rhs,
+            t: self.t / rhs,
+            rho: self.rho / rhs,
+            mat: self.mat.clone(),
         }
     }
 }
