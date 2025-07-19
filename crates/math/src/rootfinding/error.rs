@@ -5,6 +5,7 @@ pub enum RootFindingError {
     FunctionNotBracketed,
     MaxIterationsExceeded,
     InvalidInterval,
+    InvalidJacobian,
 }
 
 impl Display for RootFindingError {
@@ -13,6 +14,7 @@ impl Display for RootFindingError {
             RootFindingError::FunctionNotBracketed => write!(f, "Function Not Bracketed"),
             RootFindingError::MaxIterationsExceeded => write!(f, "Max Iterations Exceeded"),
             RootFindingError::InvalidInterval => write!(f, "Invalid Interval"),
+            RootFindingError::InvalidJacobian => write!(f, "Invalid Jacobian"),
         }
     }
 }
