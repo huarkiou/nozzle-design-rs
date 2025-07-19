@@ -1,7 +1,6 @@
 use std::{
     fmt::Display,
     ops::{Add, Div, Mul, Sub},
-    sync::Arc,
 };
 
 use math::Tolerance;
@@ -26,21 +25,12 @@ pub struct MocPoint {
     /// 静密度 单位：kg/m^3
     pub rho: f64,
     /// 物性参数
-    pub mat: Arc<Material>,
+    pub mat: Material,
 }
 
 // 构造方法
 impl MocPoint {
-    pub fn new(
-        x: f64,
-        y: f64,
-        u: f64,
-        v: f64,
-        p: f64,
-        t: f64,
-        rho: f64,
-        mat: Arc<Material>,
-    ) -> Self {
+    pub fn new(x: f64, y: f64, u: f64, v: f64, p: f64, t: f64, rho: f64, mat: Material) -> Self {
         Self {
             x,
             y,
@@ -61,7 +51,7 @@ impl MocPoint {
         p: f64,
         t_total: f64,
         rho: f64,
-        mat: Arc<Material>,
+        mat: Material,
     ) -> Self {
         let t = isentropic::cal_static_temperature(
             mat.borrow_cp(),
@@ -288,7 +278,7 @@ impl Default for MocPoint {
             p: f64::NAN,
             t: f64::NAN,
             rho: f64::NAN,
-            mat: Arc::new(Material::air_constant()),
+            mat: Material::air_constant(),
         }
     }
 }
@@ -321,7 +311,7 @@ impl PartialEq for MocPoint {
             && self.p == other.p
             && self.t == other.t
             && self.rho == other.rho
-            && Arc::ptr_eq(&self.mat, &other.mat)
+            && self.mat == other.mat
     }
 }
 

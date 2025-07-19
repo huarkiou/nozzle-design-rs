@@ -198,7 +198,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
+        let mat = Material::from_rgas_gamma(320.0, 1.2);
 
         // 构造两个输入点
         let p1 = MocPoint::from_compatible(
@@ -271,7 +271,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Arc::new(Material::from_rgas_gamma(287.042, 1.4));
+        let mat = Material::from_rgas_gamma(287.042, 1.4);
 
         // 构造两个输入点
         let velocity = 1948.3337719140004_f64;
