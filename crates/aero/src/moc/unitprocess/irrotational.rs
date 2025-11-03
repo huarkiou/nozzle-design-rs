@@ -181,13 +181,9 @@ impl UnitProcess for Irrotational {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use math::Tolerance;
-
-    use crate::{Material, moc::CharLine};
-
     use super::*;
+    use crate::{Material, moc::CharLine};
+    use math::Tolerance;
 
     #[test]
     fn test_interior_point_1() {
