@@ -142,7 +142,44 @@ impl UnitProcess for Irrotational {
     }
 
     fn symmetry_axis_point(&self, context: Context) -> Option<MocPoint> {
-        todo!()
+        let p1 = &context.next[context.idx_next];
+
+        let (mut lm, mut qm, mut rm, mut sm) = self.cal_lqrs_right(p1);
+
+        let mut pr = p1.clone();
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            // 计算 pr.x 和 pr.y
+            pr.x = p1.x - p1.y / lm;
+            pr.y = 0.;
+
+            // 计算 Tp, Tm
+            let tm = sm * (pr.x - p1.x) + qm * p1.u + rm * p1.v;
+
+            // 解速度
+            let u = tm / qm;
+            let v = 0.;
+
+            pr.u = u;
+            pr.v = v;
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+
+            // 更新 LQRS 使用新中点
+            let mid = (&pr + p1) / 2.0;
+            (lm, qm, rm, sm) = self.cal_lqrs_right(&mid);
+        }
+
+        let (tt, pt, rt) = p1.total_temperature_pressure_density();
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn inverse_wall_point(&self, context: Context) -> Option<MocPoint> {
@@ -330,6 +367,69 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "Interior point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_symmetry_axis_point_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(320.0, 1.2);
+
+        // 构造两个输入点
+        let p1 = MocPoint::from_compatible(
+            0.079625,
+            0.001290,
+            2306.1,
+            35.7,
+            170250.,
+            3000.0,
+            0.32947,
+            mat.clone(),
+        );
+
+        let velocity = 2332.5011075972866;
+        let theta = 0.0_f64;
+        let target = MocPoint::new(
+            0.0832869605831241,
+            0.,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            151235.51317795238,
+            1583.1871310045397,
+            0.2985071667131088,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p1.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .symmetry_axis_point(context)
+            .expect("symmetry axis point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "Symmetry axis point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target
