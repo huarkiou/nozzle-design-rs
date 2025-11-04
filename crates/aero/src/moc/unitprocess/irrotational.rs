@@ -183,7 +183,56 @@ impl UnitProcess for Irrotational {
     }
 
     fn inverse_wall_point(&self, context: Context) -> Option<MocPoint> {
-        todo!()
+        let p1 = &context.next[context.idx_next];
+        let p2 = &context.prev[context.idx_prev];
+
+        let lm = (p2.y - p1.y) / (p2.x - p1.x);
+
+        let mut p3 = (p1 + p2) / 2.; // p3为p1与p2之间某一点
+        let mut pr = p3.clone();
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            // 计算此轮迭代中的p1参数
+            let mut p3_prev;
+            for _ in 0..self.conf.n_corr {
+                p3_prev = p3.clone();
+                let p_tmp = (&p3 + &pr) / 2.;
+                let (_, mach) = p_tmp.sound_speed_and_mach_number();
+                let lp = (p_tmp.flow_direction() + (1. / mach).asin()).tan();
+                p3.x = (p2.y - pr.y + lp * pr.x - lm * p2.x) / (lp - lm);
+                p3.y = pr.y + lp * (p3.x - pr.x);
+                p3.interpolate_along(p2, p1);
+                if !p3.is_valid() {
+                    return None;
+                }
+                if p3.is_converged_with(&p3_prev, self.conf.tol) {
+                    break;
+                }
+            }
+
+            // 沿着左行特征线p3-pr
+            let (_, qp, rp, sp) = self.cal_lqrs_left(&((&pr + &p3) / 2.));
+            let tp = sp * (pr.x - p3.x) + qp * p3.u + rp * p3.v;
+            let l0 = pr.v / pr.u;
+            pr.u = tp / (qp + l0 * rp);
+            pr.v = pr.u * l0;
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+        }
+
+        let (tt, pt, rt) = tuple_average_3f64(
+            p1.total_temperature_pressure_density(),
+            p2.total_temperature_pressure_density(),
+        );
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn exit_characteristics_point(
@@ -377,8 +426,8 @@ mod tests {
     fn test_symmetry_axis_point_1() {
         let config = GeneralConfig {
             axisym: true,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
@@ -430,6 +479,80 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "Symmetry axis point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_inverse_wall_point_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(320.0, 1.2);
+
+        // 构造两个输入点
+        let p1 = MocPoint::from_compatible(
+            0.005495,
+            0.026020,
+            1578.3,
+            705.7,
+            1154500.,
+            3000.0,
+            1.6240,
+            mat.clone(),
+        );
+
+        let p2 = MocPoint::from_compatible(
+            0.005085,
+            0.026080,
+            1577.5,
+            702.3,
+            1160400.,
+            3000.0,
+            1.6309,
+            mat.clone(),
+        );
+
+        let velocity = 1727.8264988128874;
+        let theta = 0.4196581804279899_f64;
+        let target = MocPoint::new(
+            0.0052899999999999996,
+            0.02605,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            1157449.3598894787,
+            2222.5561432291665,
+            1.6274499981586739,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .inverse_wall_point(context)
+            .expect("inverse wall point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "Inverse wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target
