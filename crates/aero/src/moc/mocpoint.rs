@@ -302,6 +302,7 @@ impl Display for MocPoint {
     }
 }
 
+// 基本运算
 impl PartialEq for MocPoint {
     fn eq(&self, other: &Self) -> bool {
         self.x == other.x
@@ -447,6 +448,47 @@ impl Div<f64> for MocPoint {
             t: self.t / rhs,
             rho: self.rho / rhs,
             mat: self.mat.clone(),
+        }
+    }
+}
+
+// 插值
+impl MocPoint {
+    /// 计算 self 在 p1->p2 线段上的投影参数 t
+    /// t = ((self - p1) · (p2 - p1)) / |p2 - p1|²
+    fn projection_parameter(&self, p1: &MocPoint, p2: &MocPoint) -> f64 {
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        let len_sq = dx * dx + dy * dy;
+
+        if len_sq == 0.0 {
+            return 0.0; // p1 == p2，退化情况
+        }
+
+        let t = ((self.x - p1.x) * dx + (self.y - p1.y) * dy) / len_sq;
+        t // 可根据需要 clamp 到 [0, 1] 或保留外插
+    }
+}
+
+impl MocPoint {
+    /// 根据 self 的 (x, y) 位置，在 p1 与 p2 之间对流场参数进行线性插值。
+    /// 假设 p1 和 p2 是流场中已知状态的两点，self 仅提供几何位置。
+    /// 返回一个新的 MocPoint，其位置为 self 的 (x, y)，其余参数为插值结果。
+    pub fn interpolate_along(&self, p1: &MocPoint, p2: &MocPoint) -> MocPoint {
+        let t = self.projection_parameter(p1, p2);
+
+        // 线性插值所有流场参数
+        let lerp = |a: f64, b: f64| a + t * (b - a);
+
+        MocPoint {
+            x: self.x,
+            y: self.y,
+            u: lerp(p1.u, p2.u),
+            v: lerp(p1.v, p2.v),
+            p: lerp(p1.p, p2.p),
+            t: lerp(p1.t, p2.t),
+            rho: lerp(p1.rho, p2.rho),
+            mat: p1.mat.clone(), // 假设物性相同；否则需额外处理
         }
     }
 }
