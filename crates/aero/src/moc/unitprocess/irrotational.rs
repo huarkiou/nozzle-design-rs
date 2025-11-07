@@ -23,6 +23,7 @@ impl Irrotational {
     /// - `Q`: 流动速度与声速关系的中间变量。
     /// - `R`: 线性组合项，结合了速度和L。
     /// - `S`: 轴对称修正项，若配置中启用轴对称则非零。
+    #[inline]
     fn cal_lqrs_left(&self, point: &MocPoint) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
@@ -50,6 +51,7 @@ impl Irrotational {
     /// - `Q`: 流动速度与声速关系的中间变量。
     /// - `R`: 线性组合项，结合了速度和L。
     /// - `S`: 轴对称修正项，若配置中启用轴对称则非零。
+    #[inline]
     fn cal_lqrs_right(&self, point: &MocPoint) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() - (1.0 / ma).asin()).tan();
@@ -63,6 +65,7 @@ impl Irrotational {
         (l, q, r, s)
     }
 
+    #[inline]
     fn cal_lqrs_left_modified(&self, point: &MocPoint, modi: f64) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
@@ -240,7 +243,48 @@ impl UnitProcess for Irrotational {
         context: Context,
         cal_u_v: ExitLineFunc,
     ) -> Option<MocPoint> {
-        todo!()
+        let p1 = &context.next[context.idx_next];
+        let p2 = &context.prev[context.idx_prev];
+        let mut lp;
+        if p2.y.abs() < self.conf.tol.abs {
+            (lp, _, _, _) = self.cal_lqrs_left_modified(p2, p1.v / p1.y);
+        } else {
+            (lp, _, _, _) = self.cal_lqrs_left(p2);
+        }
+
+        let mut pr = (p1 + p2) / 2.;
+        (pr.u, pr.v) = cal_u_v(pr.y, &p1);
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            // 流线
+            let l0 = (p2.flow_direction() + pr.flow_direction()).tan();
+            // 计算 pr.x 和 pr.y
+            pr.x = (p2.y - p1.y + lp * p1.x - l0 * p2.x) / (lp - l0);
+            pr.y = p1.y + lp * (pr.x - p1.x);
+
+            // 解速度
+            (pr.u, pr.v) = cal_u_v(pr.y, &p1);
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+
+            // 更新 LQRS 使用新中点
+            let mid1 = (&pr + p1) / 2.0;
+            (lp, _, _, _) = self.cal_lqrs_left(&mid1);
+        }
+
+        let (tt, pt, rt) = tuple_average_3f64(
+            p1.total_temperature_pressure_density(),
+            p2.total_temperature_pressure_density(),
+        );
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn exit_characteristics_point_fixed_dist(
@@ -553,6 +597,83 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "Inverse wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_exit_characteristics_point_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.4);
+
+        // 构造两个输入点
+        let mut velocity = 578.68844312083490;
+        let mut theta = 0.0_f64;
+        let p1 = MocPoint::from_compatible(
+            1.8951087644550260,
+            0.0000000000000000,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175574.31375951759,
+            300.0,
+            4.5876520884696967,
+            mat.clone(),
+        );
+
+        velocity = 578.42134504689045;
+        theta = 0.00052976493774764544_f64;
+        let p2 = MocPoint::from_compatible(
+            1.8919379416868118,
+            0.0013837169816496176,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            176286.08472429001,
+            300.0,
+            4.6009075183326198,
+            mat.clone(),
+        );
+
+        let velocity = 578.6884431208349;
+        let theta = 0.0_f64;
+        let target = MocPoint::new(
+            1.898286422924196, 0.0013870801847318665,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175575.22539912476,
+            133.33317695810655,
+            4.587658492100335,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .exit_characteristics_point(context, Box::new(|_, p: &MocPoint| (p.u, p.v)))
+            .expect("exit characteristics point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "Exit characteristics point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target
