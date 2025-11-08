@@ -105,12 +105,12 @@ impl MocPoint {
     }
 
     /// 该点到另一点的距离的平方 单位：m^2
-    pub fn distance_squared_to(&self, other: Self) -> f64 {
+    pub fn distance_squared_to(&self, other: &Self) -> f64 {
         (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
     }
 
     /// 该点到另一点的距离 单位：m
-    pub fn distance_to(&self, other: Self) -> f64 {
+    pub fn distance_to(&self, other: &Self) -> f64 {
         self.distance_squared_to(other).sqrt()
     }
 
