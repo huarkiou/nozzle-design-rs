@@ -66,8 +66,8 @@ pub trait UnitProcess {
     /// - `context`: 参数上下文，要求p1和p2之间某一点发出的左行特征线通过点pr，且点p1和pr为壁面点
     ///     - p1为context.prev\[idx_prev\]
     ///     - p2为context.prev\[idx_prev+1\]
-    ///     - pr为待求点，context.next\[idx_next\]应存有点pr的坐标和倾角(x,y,θ)
-    fn inverse_wall_point(&self, context: Context) -> Option<MocPoint>;
+    ///     - pr为待求点，也即context.next\[idx_next\]；wall_info应存有点pr的坐标和倾角(x,y,θ)
+    fn inverse_wall_point(&self, context: Context, wall_info: (f64, f64, f64)) -> Option<MocPoint>;
 
     /// 求解出口左行特征线上的点
     ///
