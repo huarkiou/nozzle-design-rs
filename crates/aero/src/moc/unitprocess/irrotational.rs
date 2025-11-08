@@ -336,7 +336,60 @@ impl UnitProcess for Irrotational {
     }
 
     fn transition_interior_point(&self, context: Context) -> Option<MocPoint> {
-        todo!()
+        let p1 = &context.next[context.idx_next];
+        let p2 = &context.prev[context.idx_prev];
+        let (mut lp, mut qp, mut rp, mut sp);
+        if p2.y.abs() < self.conf.tol.abs {
+            (lp, qp, rp, sp) = self.cal_lqrs_left_modified(p2, p1.v / p1.y);
+        } else {
+            (lp, qp, rp, sp) = self.cal_lqrs_left(p2);
+        }
+        let (mut lm, mut qm, mut rm, mut sm) = self.cal_lqrs_right(p1);
+
+        let mut pr = (p1 + p2) / 2.;
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            // 计算 pr.x 和 pr.y
+            pr.x = (p1.y - p2.y - lm * p1.x + lp * p2.x) / (lp - lm);
+            pr.y = p1.y + lm * (pr.x - p1.x);
+
+            // 计算 Tp, Tm
+            let tp = sp * (pr.x - p2.x) + qp * p2.u + rp * p2.v;
+            let tm = sm * (pr.x - p1.x) + qm * p1.u + rm * p1.v;
+
+            // 解速度
+            let denominator = qm * rp - qp * rm;
+            let u = (tm * rp - tp * rm) / denominator;
+            let v = (qm * tp - qp * tm) / denominator;
+            pr.u = u;
+            pr.v = v;
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+
+            // 更新 LQRS 使用新中点
+            let mid1 = (&pr + p2) / 2.0;
+            (lp, qp, rp, sp) = self.cal_lqrs_left(&mid1);
+            let mid2 = (&pr + p1) / 2.0;
+            (lm, qm, rm, sm) = self.cal_lqrs_right(&mid2);
+        }
+
+        if pr.x > p1.x {
+            return None;
+        }
+
+        let (tt, pt, rt) = tuple_average_3f64(
+            p1.total_temperature_pressure_density(),
+            p2.total_temperature_pressure_density(),
+        );
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn transition_wall_point(&self, context: Context) -> Option<MocPoint> {
@@ -797,6 +850,81 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "Exit characteristics point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_transition_interior_point_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.4);
+
+        // 构造两个输入点
+        let velocity = 578.68844312083490_f64;
+        let theta = 0.0_f64;
+        let p1 = MocPoint::from_compatible(
+            1.8982869690824169, 0.0013870804740672891,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175574.31375951762,
+            300.0,
+            4.5876310941627727,
+            mat.clone(),
+        );
+
+        let velocity = 578.42134504689045_f64;
+        let theta = 0.00052976493774764544_f64;
+        let p2 = MocPoint::from_compatible(
+            1.8919379416868118, 0.0013837169816496176,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            176286.08472429001,
+            300.0,
+            4.6009075183326198,
+            mat.clone(),
+        );
+
+        let velocity = 578.5103632704744_f64;
+        let theta = 0.0005287809353698835_f64;
+        let target = MocPoint::new(
+            1.8951118904357467, 0.002772289355895323,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            176048.36890983424,
+            133.43573797015043,
+            4.596475229646061,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .transition_interior_point(context)
+            .expect("transition interior point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "transition interior point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target
