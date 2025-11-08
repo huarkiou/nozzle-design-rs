@@ -185,27 +185,35 @@ impl UnitProcess for Irrotational {
         Some(pr)
     }
 
-    fn inverse_wall_point(&self, context: Context) -> Option<MocPoint> {
-        let p1 = &context.next[context.idx_next];
-        let p2 = &context.prev[context.idx_prev];
+    fn inverse_wall_point(&self, context: Context, wall_info: (f64, f64, f64)) -> Option<MocPoint> {
+        let p1 = &context.prev[context.idx_prev];
+        let p2 = &context.prev[context.idx_prev + 1];
 
         let lm = (p2.y - p1.y) / (p2.x - p1.x);
 
-        let mut p3 = (p1 + p2) / 2.; // p3为p1与p2之间某一点
-        let mut pr = p3.clone();
+        let mut p3 = (p1 + p2) / 2.; // p3为p1与p2之间某一点，预估p3参数
+
+        let velo = p3.velocity();
+        let mut pr = MocPoint {
+            x: wall_info.0,
+            y: wall_info.1,
+            u: velo * wall_info.2.cos(),
+            v: velo * wall_info.2.sin(),
+            ..p3.clone()
+        };
         for _ in 0..self.conf.n_corr {
             let pr_prev = pr.clone();
 
-            // 计算此轮迭代中的p1参数
+            // 计算此轮迭代中的p3参数
             let mut p3_prev;
             for _ in 0..self.conf.n_corr {
                 p3_prev = p3.clone();
                 let p_tmp = (&p3 + &pr) / 2.;
                 let (_, mach) = p_tmp.sound_speed_and_mach_number();
                 let lp = (p_tmp.flow_direction() + (1. / mach).asin()).tan();
-                p3.x = (p2.y - pr.y + lp * pr.x - lm * p2.x) / (lp - lm);
+                p3.x = (p1.y - pr.y + lp * pr.x - lm * p1.x) / (lp - lm);
                 p3.y = pr.y + lp * (p3.x - pr.x);
-                p3.interpolate_along(p2, p1);
+                p3.interpolate_along(p1, p2);
                 if !p3.is_valid() {
                     return None;
                 }
@@ -542,17 +550,6 @@ mod tests {
 
         // 构造两个输入点
         let p1 = MocPoint::from_compatible(
-            0.005495,
-            0.026020,
-            1578.3,
-            705.7,
-            1154500.,
-            3000.0,
-            1.6240,
-            mat.clone(),
-        );
-
-        let p2 = MocPoint::from_compatible(
             0.005085,
             0.026080,
             1577.5,
@@ -563,10 +560,21 @@ mod tests {
             mat.clone(),
         );
 
+        let p2 = MocPoint::from_compatible(
+            0.005495,
+            0.026020,
+            1578.3,
+            705.7,
+            1154500.,
+            3000.0,
+            1.6240,
+            mat.clone(),
+        );
+
         let velocity = 1727.8264988128874;
         let theta = 0.4196581804279899_f64;
         let target = MocPoint::new(
-            0.0052899999999999996,
+            0.00529,
             0.02605,
             velocity * theta.cos(),
             velocity * theta.sin(),
@@ -578,9 +586,10 @@ mod tests {
 
         // 创建 CharLine
         let mut next_line = CharLine::new();
-        next_line.push(p1.clone());
+        next_line.push(target.clone());
 
         let mut prev_line = CharLine::new();
+        prev_line.push(p1.clone());
         prev_line.push(p2.clone());
 
         let context = Context {
@@ -591,7 +600,7 @@ mod tests {
         };
 
         let result_point = unitprocess
-            .inverse_wall_point(context)
+            .inverse_wall_point(context, (target.x, target.y, target.flow_direction()))
             .expect("inverse wall point should be Some");
 
         assert!(
@@ -644,7 +653,8 @@ mod tests {
         let velocity = 578.6884431208349;
         let theta = 0.0_f64;
         let target = MocPoint::new(
-            1.898286422924196, 0.0013870801847318665,
+            1.898286422924196,
+            0.0013870801847318665,
             velocity * theta.cos(),
             velocity * theta.sin(),
             175575.22539912476,
