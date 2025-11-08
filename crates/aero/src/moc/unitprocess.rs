@@ -63,7 +63,7 @@ pub trait UnitProcess {
     ///
     /// # 参数
     /// - `&self`: 包含计算过程中所需的控制参数
-    /// - `context`: 参数上下文，要求p1和p2之间某一点发出的左行特征线通过点pr，且点p1和pr为壁面点
+    /// - `context`: 参数上下文，要求p1和p2之间某一点发出的左行特征线通过点pr，其中点p1和pr为壁面点
     ///     - p1为context.prev\[idx_prev\]
     ///     - p2为context.prev\[idx_prev+1\]
     ///     - pr为待求点，也即context.next\[idx_next\]；wall_info应存有点pr的坐标和倾角(x,y,θ)
@@ -116,7 +116,7 @@ pub trait UnitProcess {
     ///
     /// # 参数
     /// - `&self`: 包含计算过程中所需的控制参数
-    /// - `context`: 参数上下文，要求p1在pr发出的右行特征线上，p2和p3上一点发出的左行特征线过点pr
+    /// - `context`: 参数上下文，要求p1在pr发出的右行特征线上，直线p2和p3上一点发出的左行特征线过点pr，其中pr和p2为壁面点
     ///     - p1为context.next\[idx_next\]
     ///     - p2为context.prev\[idx_prev\]
     ///     - p3为context.prev\[idx_prev+1\]
