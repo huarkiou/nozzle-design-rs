@@ -1216,6 +1216,94 @@ mod tests {
     }
 
     #[test]
+    fn test_transition_wall_point_3() {
+        let config = GeneralConfig {
+            axisym: AreaType::Axisymmetric,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(320., 1.4);
+
+        // 构造两个输入点
+        let (velocity, theta): (f64, f64) = (1789.6295849830256, 0.32746227178513421);
+        let p1 = MocPoint::from_compatible(
+            0.35843974472954165,
+            1.1199968743597424,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            9898.1499933631203,
+            2000.0,
+            0.054248073729845178,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (1794.7436828628317, 0.34103154223032950);
+        let p2 = MocPoint::from_compatible(
+            0.31381485362272077,
+            1.0981396888218800,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            9409.7996711261931,
+            2000.0,
+            0.052322544523846583,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (1789.4319903359690, 0.33055297823245189);
+        let p3 = MocPoint::from_compatible(
+            0.31495905666087648,
+            1.0981979811985894,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            9917.3456869649326,
+            2000.0,
+            0.054323198622279717,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (1794.1731949180319, 0.33416148703456666);
+        let target = MocPoint::new(
+            0.378701656042577,
+            1.120917525312198,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            9463.47216247024,
+            562.9207797489387,
+            0.05253554418231826,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+        prev_line.push(p3.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .transition_wall_point(context)
+            .expect("transition wall point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "transition wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
     fn test_last_point_1() {
         let config = GeneralConfig {
             axisym: AreaType::Axisymmetric,
