@@ -301,7 +301,38 @@ impl UnitProcess for Irrotational {
         cal_u_v: ExitLineFunc,
         dist: f64,
     ) -> Option<MocPoint> {
-        todo!()
+        // let p1 = &context.next[context.idx_next];
+        let p2 = &context.prev[context.idx_prev];
+
+        // let mut pr = (p1 + p2) / 2.;
+        let mut pr = p2.clone();
+        let mut theta_p = p2.flow_direction() + (1. / p2.mach_number()).asin();
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            pr.x = p2.x + dist * theta_p.cos();
+            pr.y = p2.y + dist * theta_p.sin();
+            (pr.u, pr.v) = cal_u_v(pr.y, p2);
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+
+            let pt = (&pr + p2) / 2.;
+            theta_p = pt.flow_direction() + (1. / pt.mach_number()).asin();
+        }
+
+        // let (tt, pt, rt) = tuple_average_3f64(
+        //     p1.total_temperature_pressure_density(),
+        //     p2.total_temperature_pressure_density(),
+        // );
+        let (tt, pt, rt) = p2.total_temperature_pressure_density();
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn transition_interior_point(&self, context: Context) -> Option<MocPoint> {
@@ -678,7 +709,89 @@ mod tests {
         };
 
         let result_point = unitprocess
-            .exit_characteristics_point(context, Box::new(|_, p: &MocPoint| (p.u, p.v)))
+            .exit_characteristics_point(context, Box::new(|_, p: &MocPoint| (p.velocity(), 0.)))
+            .expect("exit characteristics point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "Exit characteristics point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_exit_characteristics_point_fixed_dist_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.4);
+
+        // 构造两个输入点
+        let velocity = 578.42134504689045;
+        let theta = 0.00052976493774764544_f64;
+        let p1 = MocPoint::from_compatible(
+            1.8919379416868118,
+            0.0013837169816496176,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            176286.08472429001,
+            300.,
+            4.6009075183326198,
+            mat.clone(),
+        );
+
+        let velocity = 578.68844312083490;
+        let theta = 0.0_f64;
+        let p2 = MocPoint::from_compatible(
+            1.8951087644550260,
+            0.0000000000000000,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175574.31375951759,
+            300.0,
+            4.5876520884696967,
+            mat.clone(),
+        );
+
+        let velocity = 578.6884431208349;
+        let theta = 0.0_f64;
+        let target = MocPoint::new(
+            1.898279448151052,
+            0.0013840356254392625,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175575.22539912476,
+            133.33317695810655,
+            4.587658492100335,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .exit_characteristics_point_fixed_dist(
+                context,
+                Box::new(|_, p: &MocPoint| (p.velocity(), 0.0)),
+                p1.distance_to(&p2),
+            )
             .expect("exit characteristics point should be Some");
 
         assert!(
