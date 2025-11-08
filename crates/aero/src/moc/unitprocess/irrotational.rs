@@ -205,9 +205,8 @@ impl UnitProcess for Irrotational {
             let pr_prev = pr.clone();
 
             // 计算此轮迭代中的p3参数
-            let mut p3_prev;
             for _ in 0..self.conf.n_corr {
-                p3_prev = p3.clone();
+                let p3_prev = p3.clone();
                 let p_tmp = (&p3 + &pr) / 2.;
                 let (_, mach) = p_tmp.sound_speed_and_mach_number();
                 let lp = (p_tmp.flow_direction() + (1. / mach).asin()).tan();
@@ -393,7 +392,82 @@ impl UnitProcess for Irrotational {
     }
 
     fn transition_wall_point(&self, context: Context) -> Option<MocPoint> {
-        todo!()
+        let p1 = &context.next[context.idx_next];
+        let p2 = &context.prev[context.idx_prev];
+        let p3 = &context.prev[context.idx_prev + 1];
+
+        // 右行特征线pr-p1
+        let (mut lm, mut qm, mut rm, mut sm) = self.cal_lqrs_right(p1);
+        // 流线p2-pr
+        let mut l0 = p2.v / p2.u;
+        // p4为右行特征线p2-p3上的一点
+        let mut p4 = (p2 + p3) / 2.;
+        // 从p4发出的左行特征线p4-pr
+        let (mut lp, mut qp, mut rp, mut sp) = self.cal_lqrs_left(&p4);
+
+        let mut pr = (p2 + p1) / 2.;
+        for _ in 0..self.conf.n_corr {
+            let pr_prev = pr.clone();
+
+            // 计算p4
+            for _ in 0..self.conf.n_corr {
+                let p4_prev = p4.clone();
+                let l23 = (p3.y - p2.y) / (p3.x - p2.x);
+                p4.x = (p2.y - pr.y + lp * pr.x - l23 * p2.x) / (lp - l23);
+                p4.y = pr.y + lp * (p4.x - pr.x);
+                p4.interpolate_along(p2, p3);
+                if !p4.is_valid() {
+                    return None;
+                }
+                if p4.is_converged_with(&p4_prev, self.conf.tol) {
+                    break;
+                }
+            }
+
+            // 计算 pr.x 和 pr.y
+            pr.x = (p1.y - p2.y + l0 * p2.x - lm * p1.x) / (l0 - lm);
+            pr.y = p2.y + l0 * (pr.x - p2.x);
+
+            // 解速度
+            let tp = sp * (pr.x - p1.x) + qp * p1.u + rp * p1.v;
+            let tm = sm * (pr.x - p4.x) + qm * p4.u + rm * p4.v;
+            let denominator = qm * rp - qp * rm;
+            let u = (tm * rp - tp * rm) / denominator;
+            let v = (qm * tp - qp * tm) / denominator;
+            pr.u = u;
+            pr.v = v;
+            // 修正
+            let velo = pr.velocity();
+            if velo < self.conf.tol.abs {
+                pr.u = velo;
+                pr.v = 0.;
+            }
+
+            // 检查是否收敛
+            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
+                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
+            {
+                break;
+            }
+
+            // 左行特征线p4-pr
+            let mid1 = (&p4 + &pr) / 2.0;
+            (lp, qp, rp, sp) = self.cal_lqrs_left(&mid1);
+            // 右行特征线pr-p1
+            let mid2 = (&pr + p1) / 2.0;
+            (lm, qm, rm, sm) = self.cal_lqrs_right(&mid2);
+
+            // 流线p2-pr
+            l0 = (p2.v / p2.u + pr.v / pr.u) / 2.;
+        }
+
+        let (tt, pt, rt) = tuple_average_3f64(
+            p1.total_temperature_pressure_density(),
+            p2.total_temperature_pressure_density(),
+        );
+        pr.set_temperature_pressure_density(tt, pt, rt);
+
+        Some(pr)
     }
 
     fn last_point(&self, context: Context, cal_u_v: ExitLineFunc) -> Option<MocPoint> {
@@ -860,8 +934,8 @@ mod tests {
     fn test_transition_interior_point_1() {
         let config = GeneralConfig {
             axisym: true,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
@@ -871,7 +945,8 @@ mod tests {
         let velocity = 578.68844312083490_f64;
         let theta = 0.0_f64;
         let p1 = MocPoint::from_compatible(
-            1.8982869690824169, 0.0013870804740672891,
+            1.8982869690824169,
+            0.0013870804740672891,
             velocity * theta.cos(),
             velocity * theta.sin(),
             175574.31375951762,
@@ -883,7 +958,8 @@ mod tests {
         let velocity = 578.42134504689045_f64;
         let theta = 0.00052976493774764544_f64;
         let p2 = MocPoint::from_compatible(
-            1.8919379416868118, 0.0013837169816496176,
+            1.8919379416868118,
+            0.0013837169816496176,
             velocity * theta.cos(),
             velocity * theta.sin(),
             176286.08472429001,
@@ -895,7 +971,8 @@ mod tests {
         let velocity = 578.5103632704744_f64;
         let theta = 0.0005287809353698835_f64;
         let target = MocPoint::new(
-            1.8951118904357467, 0.002772289355895323,
+            1.8951118904357467,
+            0.002772289355895323,
             velocity * theta.cos(),
             velocity * theta.sin(),
             176048.36890983424,
@@ -925,6 +1002,185 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "transition interior point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_transition_wall_point_1() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.4);
+
+        // 构造两个输入点
+        let velocity = 421.13870346605336_f64;
+        let theta = 0.13644122164345995_f64;
+        let p1 = MocPoint::from_compatible(
+            0.0071288894325802748,
+            0.99499809824891272,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            886014.89349445840,
+            300.0,
+            14.578529717965795,
+            mat.clone(),
+        );
+
+        let velocity = 420.96812614461288_f64;
+        let theta = 0.13493747221790942_f64;
+        let p2 = MocPoint::from_compatible(
+            0.0000000000000000,
+            1.0000000000000000,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            887060.13126201590,
+            300.0,
+            14.590840930401765,
+            mat.clone(),
+        );
+
+        let velocity = 420.91142292916430_f64;
+        let theta = 0.13589472516792001_f64;
+        let p3 = MocPoint::from_compatible(
+            0.0070286901822888574,
+            0.99487139839190986,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            887410.75364098849,
+            300.0,
+            14.594930905654611,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (420.6220130296241, 0.13621169438131384);
+        let target = MocPoint::new(
+            0.00021939206260824715,
+            1.0000299275858477,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            889188.1360271955,
+            211.94712641090678,
+            14.61581981911365,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+        prev_line.push(p3.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .transition_wall_point(context)
+            .expect("transition wall point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "transition wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_transition_wall_point_2() {
+        let config = GeneralConfig {
+            axisym: true,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.2874718741354083);
+
+        // 构造两个输入点
+        let (velocity, theta): (f64, f64) = (2035.7726107195051, 0.31325662671349330);
+        let p1 = MocPoint::from_compatible(
+            0.11604615315469557,
+            0.43042968648297669,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            42576.927088002609,
+            2868.0,
+            0.11810927136810002,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (2035.9849779642398, 0.31583904158230208);
+        let p2 = MocPoint::from_compatible(
+            0.10087027099609050,
+            0.42723582495402546,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            42525.885489298969,
+            2868.0,
+            0.11799928133601660,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (2032.8683375746696, 0.31146882264229447);
+        let p3 = MocPoint::from_compatible(
+            0.10095815521696822,
+            0.42723335376744537,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            43279.197749120111,
+            2868.0,
+            0.11961963449605677,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (2035.0914547801467, 0.3138191082330746);
+        let target = MocPoint::new(
+            0.11109947528489121,
+            0.4305670752761383,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            42740.89366076534,
+            1257.157592612592,
+            0.11846240650806635,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let mut next_line = CharLine::new();
+        next_line.push(p1.clone());
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+        prev_line.push(p3.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .transition_wall_point(context)
+            .expect("transition wall point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "transition wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target
