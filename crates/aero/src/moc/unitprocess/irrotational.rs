@@ -1,5 +1,5 @@
 use crate::moc::{
-    MocPoint,
+    CharLine, MocPoint,
     unitprocess::{Context, ExitLineFunc, GeneralConfig, UnitProcess},
 };
 
@@ -29,7 +29,7 @@ impl Irrotational {
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
         let q = point.u * point.u - soundspeed * soundspeed;
         let r = 2.0 * point.u * point.v - q * l;
-        let s = if self.conf.axisym {
+        let s = if self.conf.is_axisymmetric() {
             soundspeed.powi(2) * point.v / point.y
         } else {
             0.0
@@ -57,7 +57,7 @@ impl Irrotational {
         let l = (point.flow_direction() - (1.0 / ma).asin()).tan();
         let q = point.u * point.u - soundspeed * soundspeed;
         let r = 2.0 * point.u * point.v - q * l;
-        let s = if self.conf.axisym {
+        let s = if self.conf.is_axisymmetric() {
             soundspeed.powi(2) * point.v / point.y
         } else {
             0.0
@@ -71,7 +71,7 @@ impl Irrotational {
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
         let q = point.u * point.u - soundspeed * soundspeed;
         let r = 2.0 * point.u * point.v - q * l;
-        let s = if self.conf.axisym {
+        let s = if self.conf.is_axisymmetric() {
             soundspeed.powi(2) * modi
         } else {
             0.0
@@ -117,7 +117,7 @@ impl UnitProcess for Irrotational {
             pr.u = u;
             pr.v = v;
             // 特别处理轴线附近的点
-            if self.conf.axisym && pr.y.abs() < self.conf.tol.abs {
+            if self.conf.is_axisymmetric() && pr.y.abs() < self.conf.tol.abs {
                 pr.v = 0.;
             }
 
@@ -470,21 +470,49 @@ impl UnitProcess for Irrotational {
         Some(pr)
     }
 
-    fn last_point(&self, context: Context, cal_u_v: ExitLineFunc) -> Option<MocPoint> {
-        todo!()
+    fn last_point(
+        &self,
+        context: Context,
+        cal_u_v: ExitLineFunc,
+        mfr_need: f64,
+    ) -> Option<MocPoint> {
+        let p2 = &context.prev[context.idx_prev];
+        let p3 = &context.prev[context.idx_prev + 1];
+
+        // 预估p3到pr的距离
+        let mut d3r = p3.distance_to(&p2) / 2.;
+
+        let mut pr = p2.clone();
+        for _ in 0..self.conf.n_corr {
+            let pt = (p3 + &pr) / 2.;
+            let theta = pt.flow_direction() + (1. / pt.mach_number()).asin();
+            pr.x = p3.x + d3r * theta.cos();
+            pr.y = p3.y + d3r * theta.sin();
+            (pr.u, pr.v) = cal_u_v(pr.y, &p3);
+            let mfr_cur = CharLine::mass_flow_rate(&vec![pr.clone(), p3.clone()], self.conf.axisym);
+            if (mfr_need - mfr_cur).abs() < mfr_need * self.conf.tol.rel {
+                break;
+            }
+            d3r *= mfr_need / mfr_cur;
+        }
+
+        Some(pr)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Material, moc::CharLine};
+    use crate::{
+        Material,
+        moc::{AreaType, CharLine},
+    };
     use math::Tolerance;
 
     #[test]
     fn test_interior_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -557,7 +585,7 @@ mod tests {
     #[test]
     fn test_interior_point_2() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -635,7 +663,7 @@ mod tests {
     #[test]
     fn test_symmetry_axis_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -698,7 +726,7 @@ mod tests {
     #[test]
     fn test_inverse_wall_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -773,7 +801,7 @@ mod tests {
     #[test]
     fn test_exit_characteristics_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -851,7 +879,7 @@ mod tests {
     #[test]
     fn test_exit_characteristics_point_fixed_dist_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -933,7 +961,7 @@ mod tests {
     #[test]
     fn test_transition_interior_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
         };
@@ -1011,7 +1039,7 @@ mod tests {
     #[test]
     fn test_transition_wall_point_1() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-10, 1e-10),
             n_corr: 200,
         };
@@ -1102,7 +1130,7 @@ mod tests {
     #[test]
     fn test_transition_wall_point_2() {
         let config = GeneralConfig {
-            axisym: true,
+            axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-10, 1e-10),
             n_corr: 200,
         };
@@ -1181,6 +1209,85 @@ mod tests {
         assert!(
             result_point.is_converged_with(&target, unitprocess.conf.tol),
             "transition wall point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
+            result_point,
+            target,
+            &result_point - &target
+        );
+    }
+
+    #[test]
+    fn test_last_point_1() {
+        let config = GeneralConfig {
+            axisym: AreaType::Axisymmetric,
+            tol: Tolerance::new(1e-10, 1e-10),
+            n_corr: 200,
+        };
+
+        let unitprocess = Irrotational { conf: config };
+        let mat = Material::from_rgas_gamma(287.04, 1.4);
+
+        // 构造两个输入点
+        let (velocity, theta): (f64, f64) = (578.67913564023843, 0.0);
+        let p2 = MocPoint::from_compatible(
+            5.6047812037733848,
+            1.6203058834240001,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175606.89227499434,
+            300.0,
+            4.5882134340057954,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (578.68844312083490, 0.0);
+        let p3 = MocPoint::from_compatible(
+            5.6062409066524017,
+            1.6196688176592677,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175574.31375951803,
+            300.0,
+            4.5875638563519372,
+            mat.clone(),
+        );
+
+        let (velocity, theta): (f64, f64) = (578.6884431208349, 0.);
+        let target = MocPoint::new(
+            5.6077005803442805,
+            1.6203058783093023,
+            velocity * theta.cos(),
+            velocity * theta.sin(),
+            175606.89227499434,
+            133.33853817022347,
+            4.588213434005795,
+            mat.clone(),
+        );
+
+        // 创建 CharLine
+        let next_line = CharLine::new();
+
+        let mut prev_line = CharLine::new();
+        prev_line.push(p2.clone());
+        prev_line.push(p3.clone());
+
+        let context = Context {
+            prev: &prev_line,
+            next: &next_line,
+            idx_prev: 0,
+            idx_next: 0,
+        };
+
+        let result_point = unitprocess
+            .last_point(
+                context,
+                Box::new(|_, p: &MocPoint| (p.velocity(), 0.0)),
+                17.215908632646901,
+            )
+            .expect("last point should be Some");
+
+        assert!(
+            result_point.is_converged_with(&target, unitprocess.conf.tol),
+            "last point did not converge to expected value:\nresult:{:15}\ntarget:{:15}\n  diff:{}",
             result_point,
             target,
             &result_point - &target

@@ -5,7 +5,7 @@ pub use irrotational::Irrotational;
 use math::Tolerance;
 // pub use rotational::Rotational;
 
-use crate::moc::{CharLine, MocPoint};
+use crate::moc::{AreaType, CharLine, MocPoint};
 
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
@@ -22,11 +22,21 @@ pub struct Context<'a> {
 #[derive(Clone, Copy)]
 pub struct GeneralConfig {
     /// 轴对称/二维平面
-    pub axisym: bool,
+    pub axisym: AreaType,
     /// 容差
     pub tol: Tolerance,
     /// 最大预估校正次数
     pub n_corr: u16,
+}
+
+impl GeneralConfig {
+    #[inline]
+    pub fn is_axisymmetric(&self) -> bool {
+        match self.axisym {
+            AreaType::Axisymmetric => true,
+            _ => false,
+        }
+    }
 }
 
 /// 出口最后一条特征线边界条件
@@ -132,7 +142,13 @@ pub trait UnitProcess {
     ///     - p3为context.prev\[idx_prev+1\]，为出口特征线点
     ///     - pr为待求点
     /// - `cal_u_v`: 出口左行特征线边界条件
-    fn last_point(&self, context: Context, cal_u_v: ExitLineFunc) -> Option<MocPoint>;
+    /// - `mfr_need`: 左行特征线p3-pr之间的目标质量流量
+    fn last_point(
+        &self,
+        context: Context,
+        cal_u_v: ExitLineFunc,
+        mfr_need: f64,
+    ) -> Option<MocPoint>;
 
     // 下面这三个暂时用不到
     // fn direct_walld_point(&self, context: Context) -> Option<MocPoint>;
