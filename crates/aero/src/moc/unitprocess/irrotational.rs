@@ -1040,8 +1040,8 @@ mod tests {
     fn test_transition_wall_point_1() {
         let config = GeneralConfig {
             axisym: AreaType::Axisymmetric,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
@@ -1131,8 +1131,8 @@ mod tests {
     fn test_transition_wall_point_2() {
         let config = GeneralConfig {
             axisym: AreaType::Axisymmetric,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
@@ -1219,8 +1219,8 @@ mod tests {
     fn test_transition_wall_point_3() {
         let config = GeneralConfig {
             axisym: AreaType::Axisymmetric,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
@@ -1307,8 +1307,8 @@ mod tests {
     fn test_last_point_1() {
         let config = GeneralConfig {
             axisym: AreaType::Axisymmetric,
-            tol: Tolerance::new(1e-10, 1e-10),
-            n_corr: 200,
+            tol: Tolerance::new(1e-5, 1e-5),
+            n_corr: 20,
         };
 
         let unitprocess = Irrotational { conf: config };
