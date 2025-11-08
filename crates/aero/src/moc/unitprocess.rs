@@ -105,7 +105,7 @@ pub trait UnitProcess {
     ///
     /// # 参数
     /// - `&self`: 包含计算过程中所需的控制参数
-    /// - `context`: 参数上下文，要求p1在pr发出的右行特征线上，p2发出的左行特征线过点pr，p3发出的左行特征线过点p1
+    /// - `context`: 参数上下文，要求p1在pr发出的右行特征线下游，p2发出的左行特征线过点pr，p3发出的左行特征线过点p1
     ///     - p1为context.next\[idx_next\]
     ///     - p2为context.prev\[idx_prev\]
     ///     - p3为context.prev\[idx_prev+1\]
