@@ -5,10 +5,10 @@ edition = "2024"
 
 [dependencies]
 math = { path = "../math" }
-nalgebra = "0.33"
+nalgebra = "0.34.1"
 
 [dev-dependencies]
-criterion = "0.6"
+criterion = "0.7.0"
 
 [[bench]]
 name = "moc_unitprocess_irrotational"
