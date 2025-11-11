@@ -23,7 +23,6 @@ impl Irrotational {
     /// - `Q`: 流动速度与声速关系的中间变量。
     /// - `R`: 线性组合项，结合了速度和L。
     /// - `S`: 轴对称修正项，若配置中启用轴对称则非零。
-    #[inline]
     fn cal_lqrs_left(&self, point: &MocPoint) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
@@ -51,7 +50,6 @@ impl Irrotational {
     /// - `Q`: 流动速度与声速关系的中间变量。
     /// - `R`: 线性组合项，结合了速度和L。
     /// - `S`: 轴对称修正项，若配置中启用轴对称则非零。
-    #[inline]
     fn cal_lqrs_right(&self, point: &MocPoint) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() - (1.0 / ma).asin()).tan();
@@ -65,7 +63,6 @@ impl Irrotational {
         (l, q, r, s)
     }
 
-    #[inline]
     fn cal_lqrs_left_modified(&self, point: &MocPoint, modi: f64) -> (f64, f64, f64, f64) {
         let (soundspeed, ma) = point.sound_speed_and_mach_number();
         let l = (point.flow_direction() + (1.0 / ma).asin()).tan();
@@ -80,7 +77,6 @@ impl Irrotational {
     }
 }
 
-#[inline]
 fn tuple_average_3f64(t1: (f64, f64, f64), t2: (f64, f64, f64)) -> (f64, f64, f64) {
     ((t1.0 + t2.0) / 2., (t1.1 + t2.1) / 2., (t1.2 + t2.2) / 2.)
 }
