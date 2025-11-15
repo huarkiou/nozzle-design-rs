@@ -1,6 +1,6 @@
 use math::{Tolerance, rootfinding::toms748};
 
-use crate::material::Cp;
+use crate::Cp;
 
 pub fn cal_total_temperature(cp: &Cp, t_static: f64, velocity: f64) -> f64 {
     match cp {
