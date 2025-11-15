@@ -140,7 +140,7 @@ impl Material {
             } else if t > 3000. {
                 poly2(3000.)
             } else {
-                panic!("MaterialProperty::air_piecewise_polynomial: Temperature is lower than 0!");
+                poly1(100.)
             }
         })
     }
@@ -168,7 +168,7 @@ impl Material {
             } else if t > 6000. {
                 poly2(6000.)
             } else {
-                panic!("MaterialProperty::air_piecewise_polynomial: Temperature is lower than 0!");
+                poly1(200.)
             }
         })
     }
