@@ -59,7 +59,7 @@ impl Material {
         &self.cp
     }
 
-    pub fn borrom_mw(&self) -> &f64 {
+    pub fn borrow_mw(&self) -> &f64 {
         &self.molecular_weight
     }
 }
