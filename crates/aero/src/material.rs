@@ -42,6 +42,7 @@ impl From<f64> for Cp {
 #[derive(Clone)]
 pub struct Material {
     /// 摩尔质量 (kg/kmol)
+    /// - **注意**：非国际单位制，1 kmol = 1000 mol
     molecular_weight: f64,
 
     /// 定压比热容 Cp(J/(kg·K))，输入温度 T(K)
