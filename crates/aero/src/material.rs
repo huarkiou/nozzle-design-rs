@@ -32,9 +32,9 @@ impl Cp {
     }
 }
 
-impl Into<Cp> for f64 {
-    fn into(self) -> Cp {
-        Cp::Constant(self)
+impl From<f64> for Cp {
+    fn from(value: f64) -> Self {
+        Cp::Constant(value)
     }
 }
 
