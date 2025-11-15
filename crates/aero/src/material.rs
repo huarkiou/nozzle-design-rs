@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use math::quadrature;
+use serde::{Deserialize, Deserializer, Serialize};
 
 // 热容类型枚举
 #[derive(Clone)]
@@ -38,8 +39,43 @@ impl From<f64> for Cp {
     }
 }
 
+impl std::fmt::Debug for Cp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Constant(cp_value) => f.debug_tuple("Constant").field(cp_value).finish(),
+            Self::Variable(cp_func) => f
+                .debug_tuple("Variable")
+                .field(&"unknown")
+                .field(&cp_func(297.15))
+                .finish(),
+        }
+    }
+}
+
+impl Serialize for Cp {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Constant(cp_value) => serializer.serialize_f64(*cp_value),
+            Self::Variable(cp_func) => serializer.serialize_f64(cp_func(297.15)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Cp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        Ok(Cp::Constant(value))
+    }
+}
+
 // MaterialProperty 结构体定义
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Material {
     /// 摩尔质量 (kg/kmol)
     /// - **注意**：非国际单位制，1 kmol = 1000 mol
