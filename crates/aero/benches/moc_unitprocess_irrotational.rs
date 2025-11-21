@@ -154,7 +154,6 @@ fn test_interior_point_2() {
     );
 }
 
-#[warn(unused)]
 fn test_interior_point_1_variable() {
     let config = GeneralConfig {
         axisym: AreaType::Axisymmetric,
