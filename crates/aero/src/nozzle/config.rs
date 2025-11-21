@@ -148,6 +148,9 @@ impl NozzleConfig {
     /// 保存为 TOML 文件
     pub fn to_toml_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         let toml_str = toml::to_string_pretty(self)?;
+        if let Some(parent) = Path::new(path.as_ref()).parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(path, toml_str)?;
         Ok(())
     }
@@ -215,6 +218,8 @@ impl From<NozzleConfig> for NozzleDesign {
 
 #[cfg(test)]
 mod tests {
+    use std::{env, path::PathBuf};
+
     use super::*;
 
     #[test]
@@ -231,12 +236,12 @@ mod tests {
 
         // 验证并构建设计
         config.validate().expect("config invalid");
-        let design = config.clone().build_design().unwrap();
+        let _ = config.clone().build_design().unwrap();
 
         // 保存为配置文件
-        let _ = config.to_toml_file("generated_config.toml");
+        let output_dir = env::temp_dir().join("generated_config.toml");
 
-        println!("\n程序化创建的喷管设计参数:");
-        println!("{:#?}", design);
+        println!("{:}", output_dir.to_str().unwrap_or_default());
+        let _ = config.to_toml_file(output_dir).unwrap();
     }
 }
