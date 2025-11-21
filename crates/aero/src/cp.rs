@@ -45,7 +45,7 @@ impl std::fmt::Debug for Cp {
             Self::Variable(cp_func) => f
                 .debug_tuple("Variable")
                 .field(&"unknown")
-                .field(&cp_func(297.15))
+                .field(&cp_func(273.15))
                 .finish(),
         }
     }
@@ -58,7 +58,7 @@ impl Serialize for Cp {
     {
         match self {
             Self::Constant(cp_value) => serializer.serialize_f64(*cp_value),
-            Self::Variable(cp_func) => serializer.serialize_f64(cp_func(297.15)),
+            Self::Variable(cp_func) => serializer.serialize_f64(cp_func(273.15)),
         }
     }
 }
