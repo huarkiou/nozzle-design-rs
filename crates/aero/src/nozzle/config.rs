@@ -218,7 +218,7 @@ impl From<NozzleConfig> for NozzleDesign {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf};
+    use std::env;
 
     use super::*;
 
