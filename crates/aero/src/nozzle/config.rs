@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::f64::consts::PI;
-use std::path::Path;
-use std::{f64, fs};
+use std::{
+    f64::{self, consts::PI},
+    fs,
+    path::Path,
+};
 
 use crate::Material;
 
