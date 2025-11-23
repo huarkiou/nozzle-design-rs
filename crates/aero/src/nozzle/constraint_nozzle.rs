@@ -1,5 +1,10 @@
+use math::Tolerance;
+
 use crate::{
-    moc::unitprocess::UnitProcess,
+    moc::{
+        AreaType,
+        unitprocess::{GeneralConfig, Irrotational, Rotational, UnitProcess},
+    },
     nozzle::{NozzleConfig, Section},
 };
 
@@ -10,6 +15,35 @@ pub struct ConstraintNozzle {
 }
 
 impl ConstraintNozzle {
+    /// 构建最大推力喷管OTN
+    pub fn new_otn(config: NozzleConfig) -> Self {
+        let unitprocess_config = GeneralConfig {
+            axisym: if config.control.axisymmetric {
+                AreaType::Axisymmetric
+            } else {
+                AreaType::Planar(config.geometry.width)
+            },
+            tol: Tolerance::new(config.control.eps, config.control.eps),
+            n_corr: config.control.n_correction_max,
+        };
+
+        let sections: Vec<Box<dyn Section>> = Vec::new();
+
+        Self {
+            unitprocess: if config.control.irrotational {
+                Box::new(Irrotational {
+                    conf: unitprocess_config,
+                })
+            } else {
+                Box::new(Rotational {
+                    conf: unitprocess_config,
+                })
+            },
+            config: config,
+            sections,
+        }
+    }
+
     /// 计算喷管各段内流场数据
     ///
     /// 按顺序对每个段执行特征线法计算步骤。
