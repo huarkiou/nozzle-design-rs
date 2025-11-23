@@ -2,7 +2,7 @@ use aero::{
     Material,
     moc::{
         AreaType, CharLine, MocPoint,
-        unitprocess::{Context, GeneralConfig, Irrotational, UnitProcess},
+        unitprocess::{Context, UnitprocessConfig, Irrotational, UnitProcess},
     },
 };
 
@@ -10,7 +10,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use math::Tolerance;
 
 fn test_interior_point_1() {
-    let config = GeneralConfig {
+    let config = UnitprocessConfig {
         axisym: AreaType::Axisymmetric,
         tol: Tolerance::new(1e-5, 1e-5),
         n_corr: 20,
@@ -81,7 +81,7 @@ fn test_interior_point_1() {
 }
 
 fn test_interior_point_2() {
-    let config = GeneralConfig {
+    let config = UnitprocessConfig {
         axisym: AreaType::Axisymmetric,
         tol: Tolerance::new(1e-5, 1e-5),
         n_corr: 20,
@@ -156,7 +156,7 @@ fn test_interior_point_2() {
 
 #[allow(unused)]
 fn test_interior_point_1_variable() {
-    let config = GeneralConfig {
+    let config = UnitprocessConfig {
         axisym: AreaType::Axisymmetric,
         tol: Tolerance::new(1e-5, 1e-5),
         n_corr: 20,
@@ -227,7 +227,7 @@ fn test_interior_point_1_variable() {
 }
 
 fn test_interior_point_2_variable() {
-    let config = GeneralConfig {
+    let config = UnitprocessConfig {
         axisym: AreaType::Axisymmetric,
         tol: Tolerance::new(1e-5, 1e-5),
         n_corr: 20,

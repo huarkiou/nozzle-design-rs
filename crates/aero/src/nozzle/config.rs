@@ -1,3 +1,5 @@
+use crate::moc::{AreaType, unitprocess::UnitprocessConfig};
+use math::Tolerance;
 use serde::{Deserialize, Serialize};
 use std::{
     f64::{self, consts::PI},
@@ -261,7 +263,7 @@ impl NozzleConfig {
     }
 
     /// 构建最终的喷管设计对象
-    pub fn build_design(self) -> Result<NozzleConfig, String> {
+    pub fn build(self) -> Result<NozzleConfig, String> {
         self.validate()?;
         Ok(NozzleConfig {
             control: self.control,
@@ -272,6 +274,19 @@ impl NozzleConfig {
             outlet: self.outlet,
             io: self.io,
         })
+    }
+
+    /// 构建unitprocess参数对象
+    pub fn to_unitprocess_config(&self) -> UnitprocessConfig {
+        UnitprocessConfig {
+            axisym: if self.control.axisymmetric {
+                AreaType::Axisymmetric
+            } else {
+                AreaType::Planar(self.geometry.width)
+            },
+            tol: Tolerance::new(self.control.eps, self.control.eps),
+            n_corr: self.control.n_correction_max,
+        }
     }
 }
 
@@ -295,7 +310,7 @@ mod tests {
 
         // 验证并构建设计
         config.validate().expect("config invalid");
-        let _ = config.clone().build_design().unwrap();
+        let _ = config.clone().build().unwrap();
 
         // 保存为配置文件
         let output_dir = env::temp_dir().join("generated_config.toml");
