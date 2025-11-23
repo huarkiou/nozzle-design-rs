@@ -3,7 +3,7 @@ mod rotational;
 
 pub use irrotational::Irrotational;
 use math::Tolerance;
-// pub use rotational::Rotational;
+pub use rotational::Rotational;
 
 use crate::moc::{AreaType, CharLine, MocPoint};
 
