@@ -1,4 +1,7 @@
-use crate::moc::{AreaType, unitprocess::UnitprocessConfig};
+use crate::moc::{
+    AreaType,
+    unitprocess::{Rotational, UnitProcess, UnitprocessConfig},
+};
 use math::Tolerance;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -277,7 +280,7 @@ impl NozzleConfig {
     }
 
     /// 构建unitprocess参数对象
-    pub fn to_unitprocess_config(&self) -> UnitprocessConfig {
+    fn to_unitprocess_config(&self) -> UnitprocessConfig {
         UnitprocessConfig {
             axisym: if self.control.axisymmetric {
                 AreaType::Axisymmetric
@@ -286,6 +289,19 @@ impl NozzleConfig {
             },
             tol: Tolerance::new(self.control.eps, self.control.eps),
             n_corr: self.control.n_correction_max,
+        }
+    }
+
+    // Build MOC Unit-Process Provider
+    pub fn to_unitprocess(&self) -> Box<dyn UnitProcess> {
+        if self.control.irrotational {
+            Box::new(Rotational {
+                conf: self.to_unitprocess_config(),
+            })
+        } else {
+            Box::new(Rotational {
+                conf: self.to_unitprocess_config(),
+            })
         }
     }
 }

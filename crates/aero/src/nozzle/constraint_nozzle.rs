@@ -1,5 +1,5 @@
 use crate::{
-    moc::unitprocess::{Irrotational, Rotational, UnitProcess},
+    moc::unitprocess::UnitProcess,
     nozzle::{NozzleConfig, Section},
 };
 
@@ -12,20 +12,11 @@ pub struct ConstraintNozzle {
 impl ConstraintNozzle {
     /// 构建最大推力喷管OTN
     pub fn new_otn(config: NozzleConfig) -> Self {
-        let unitprocess_config = config.to_unitprocess_config();
         let sections: Vec<Box<dyn Section>> = Vec::new();
 
         Self {
-            unitprocess: if config.control.irrotational {
-                Box::new(Irrotational {
-                    conf: unitprocess_config,
-                })
-            } else {
-                Box::new(Rotational {
-                    conf: unitprocess_config,
-                })
-            },
-            config: config,
+            unitprocess: config.to_unitprocess(),
+            config,
             sections,
         }
     }
