@@ -1,10 +1,5 @@
-use math::Tolerance;
-
 use crate::{
-    moc::{
-        AreaType,
-        unitprocess::{GeneralConfig, Irrotational, Rotational, UnitProcess},
-    },
+    moc::unitprocess::{Irrotational, Rotational, UnitProcess},
     nozzle::{NozzleConfig, Section},
 };
 
@@ -17,16 +12,7 @@ pub struct ConstraintNozzle {
 impl ConstraintNozzle {
     /// 构建最大推力喷管OTN
     pub fn new_otn(config: NozzleConfig) -> Self {
-        let unitprocess_config = GeneralConfig {
-            axisym: if config.control.axisymmetric {
-                AreaType::Axisymmetric
-            } else {
-                AreaType::Planar(config.geometry.width)
-            },
-            tol: Tolerance::new(config.control.eps, config.control.eps),
-            n_corr: config.control.n_correction_max,
-        };
-
+        let unitprocess_config = config.to_unitprocess_config();
         let sections: Vec<Box<dyn Section>> = Vec::new();
 
         Self {

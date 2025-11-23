@@ -1,9 +1,9 @@
-use crate::moc::unitprocess::GeneralConfig;
+use crate::moc::unitprocess::UnitprocessConfig;
 use crate::moc::unitprocess::UnitProcess;
 
 // /// 有旋特征线法的基本计算过程
 pub struct Rotational {
-    pub conf: GeneralConfig,
+    pub conf: UnitprocessConfig,
 }
 
 #[allow(unused)]

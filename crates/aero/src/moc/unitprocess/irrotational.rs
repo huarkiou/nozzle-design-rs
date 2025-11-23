@@ -1,11 +1,12 @@
+use crate::moc::unitprocess::UnitprocessConfig;
 use crate::moc::{
     CharLine, MocPoint,
-    unitprocess::{Context, ExitLineFunc, GeneralConfig, UnitProcess},
+    unitprocess::{Context, ExitLineFunc, UnitProcess},
 };
 
 /// 无旋特征线法的基本计算过程
 pub struct Irrotational {
-    pub conf: GeneralConfig,
+    pub conf: UnitprocessConfig,
 }
 
 impl Irrotational {
@@ -507,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_interior_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -580,7 +581,7 @@ mod tests {
 
     #[test]
     fn test_interior_point_2() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -658,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_symmetry_axis_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -721,7 +722,7 @@ mod tests {
 
     #[test]
     fn test_inverse_wall_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -796,7 +797,7 @@ mod tests {
 
     #[test]
     fn test_exit_characteristics_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -874,7 +875,7 @@ mod tests {
 
     #[test]
     fn test_exit_characteristics_point_fixed_dist_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -956,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_transition_interior_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -1034,7 +1035,7 @@ mod tests {
 
     #[test]
     fn test_transition_wall_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -1125,7 +1126,7 @@ mod tests {
 
     #[test]
     fn test_transition_wall_point_2() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -1213,7 +1214,7 @@ mod tests {
 
     #[test]
     fn test_transition_wall_point_3() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,
@@ -1301,7 +1302,7 @@ mod tests {
 
     #[test]
     fn test_last_point_1() {
-        let config = GeneralConfig {
+        let config = UnitprocessConfig {
             axisym: AreaType::Axisymmetric,
             tol: Tolerance::new(1e-5, 1e-5),
             n_corr: 20,

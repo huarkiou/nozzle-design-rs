@@ -1,11 +1,12 @@
+mod config;
 mod irrotational;
 mod rotational;
 
+pub use config::UnitprocessConfig;
 pub use irrotational::Irrotational;
-use math::Tolerance;
 pub use rotational::Rotational;
 
-use crate::moc::{AreaType, CharLine, MocPoint};
+use crate::moc::{CharLine, MocPoint};
 
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
@@ -17,26 +18,6 @@ pub struct Context<'a> {
     pub idx_prev: usize,
     /// 后一条特征线初始点下标
     pub idx_next: usize,
-}
-
-#[derive(Clone, Copy)]
-pub struct GeneralConfig {
-    /// 轴对称/二维平面
-    pub axisym: AreaType,
-    /// 容差
-    pub tol: Tolerance,
-    /// 最大预估校正次数
-    pub n_corr: u16,
-}
-
-impl GeneralConfig {
-    #[inline]
-    pub fn is_axisymmetric(&self) -> bool {
-        match self.axisym {
-            AreaType::Axisymmetric => true,
-            _ => false,
-        }
-    }
 }
 
 /// 出口最后一条特征线边界条件
