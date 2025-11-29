@@ -27,6 +27,12 @@ impl CharLine {
     pub fn new() -> Self {
         Self { data: Vec::new() }
     }
+
+    pub fn with_capacity(n: usize) -> Self {
+        Self {
+            data: Vec::with_capacity(n),
+        }
+    }
 }
 
 impl CharLine {
