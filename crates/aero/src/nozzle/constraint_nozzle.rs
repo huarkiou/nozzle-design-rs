@@ -41,7 +41,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new() {
+    fn test_new_and_run() {
         let config = NozzleConfig {
             control: Control::default(),
             material: Material::air_piecewise_polynomial(), // 使用理想空气
