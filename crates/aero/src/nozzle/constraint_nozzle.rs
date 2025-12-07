@@ -1,5 +1,5 @@
 use crate::{
-    moc::unitprocess::UnitProcess,
+    moc::{CharLines, unitprocess::UnitProcess},
     nozzle::{NozzleConfig, Section, initial_line::InitialLine},
 };
 
@@ -32,6 +32,16 @@ impl ConstraintNozzle {
             section.run(self.unitprocess.as_ref(), &self.config);
         }
     }
+
+    pub fn get_assembly_charlines(&self) -> CharLines {
+        let mut lines: CharLines = CharLines::new();
+
+        for section in &self.sections {
+            lines.extend(section.get_charlines());
+        }
+
+        lines
+    }
 }
 
 #[cfg(test)]
@@ -53,5 +63,9 @@ mod tests {
         };
         let mut n = ConstraintNozzle::new_otn(config);
         n.run();
+        let lines = n.get_assembly_charlines();
+        lines
+            .write_to_file("../../target/tmp/fluid_field.txt", false)
+            .unwrap();
     }
 }
