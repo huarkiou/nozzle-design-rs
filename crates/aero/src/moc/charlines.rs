@@ -1,5 +1,5 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{BufRead, BufReader, BufWriter, Write},
     ops::{Deref, DerefMut},
     path::Path,
@@ -39,15 +39,34 @@ impl CharLines {
             data: Vec::with_capacity(n),
         }
     }
+
+    pub fn extend(&mut self, other: &CharLines) {
+        self.data.extend(other.iter().cloned());
+    }
 }
 
 impl CharLines {
     pub fn write_to_file<P: AsRef<Path>>(&self, filepath: P, append: bool) -> std::io::Result<()> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(append)
-            .truncate(!append)
-            .open(filepath)?;
+        // 确保父目录存在
+        if let Some(parent) = filepath.as_ref().parent() {
+            // 如果路径有父目录（不是当前目录下的文件），就创建它
+            fs::create_dir_all(parent)?;
+        }
+        // 若 filepath 没有 parent（如 "file.txt"），则默认在当前目录，无需创建
+
+        let mut options = OpenOptions::new();
+        options
+            .write(true) // 必需：写权限
+            .create(true); // 不存在则创建
+        if append {
+            options.append(true); // 追加模式（隐含 write）
+            // 注意：append 模式下 truncate 会被忽略，但显式设为 false 更安全
+            options.truncate(false);
+        } else {
+            options.truncate(true); // 覆盖写入：先清空
+        }
+
+        let file = options.open(filepath)?;
 
         let mut writer = BufWriter::new(file);
 
