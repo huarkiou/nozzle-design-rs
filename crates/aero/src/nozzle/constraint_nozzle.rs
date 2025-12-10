@@ -46,10 +46,11 @@ impl ConstraintNozzle {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::{Material, nozzle::config::*};
 
     use super::*;
-
     #[test]
     fn test_new_and_run() {
         let config = NozzleConfig {
@@ -64,8 +65,8 @@ mod tests {
         let mut n = ConstraintNozzle::new_otn(config);
         n.run();
         let lines = n.get_assembly_charlines();
-        lines
-            .write_to_file("../../target/tmp/fluid_field.txt", false)
-            .unwrap();
+        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        output_dir.push("../../target/tmp/fluid_field.txt");
+        lines.write_to_file(output_dir, false).unwrap();
     }
 }
