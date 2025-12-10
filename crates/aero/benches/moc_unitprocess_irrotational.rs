@@ -2,7 +2,7 @@ use aero::{
     Material,
     moc::{
         AreaType, CharLine, MocPoint,
-        unitprocess::{Context, UnitprocessConfig, Irrotational, UnitProcess},
+        unitprocess::{Context, Irrotational, UnitProcess, UnitprocessConfig},
     },
 };
 
