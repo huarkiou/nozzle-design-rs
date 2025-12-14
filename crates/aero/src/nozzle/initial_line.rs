@@ -23,6 +23,10 @@ impl Section for InitialLine {
         _unitprocess: &dyn crate::moc::unitprocess::UnitProcess,
         config: &super::NozzleConfig,
     ) {
+        if self.calculated {
+            return;
+        }
+
         // 根据入口马赫数选择计算方法
         let initial_line = if config.inlet.ma < 1.0 {
             panic!("the Mach number of inlet flow cannot be lower than 1.0");
@@ -37,6 +41,9 @@ impl Section for InitialLine {
     }
 
     fn get_charlines(&self) -> &crate::moc::CharLines {
+        if !self.calculated {
+            panic!("InitialLine has not run, cannot get result!");
+        }
         &self.char_lines
     }
 }
