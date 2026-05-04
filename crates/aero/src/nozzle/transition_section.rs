@@ -217,10 +217,8 @@ impl Section for TransitionSection {
             }
             self.char_lines.push(next.clone());
             line_cur = next;
-            if line_cur
-                .last()
-                .map_or(false, |p| p.x > self.max_length + 1e-6)
-            {
+            // 只要特征线未缩减为单点且壁面未超出长度，就继续推进
+            if line_cur[0].x > self.max_length + 1e-6 {
                 break;
             }
         }
