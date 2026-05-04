@@ -6,7 +6,7 @@ pub use config::UnitprocessConfig;
 pub use irrotational::Irrotational;
 pub use rotational::Rotational;
 
-use crate::moc::{CharLine, MocPoint};
+use crate::moc::{AreaType, CharLine, MocPoint};
 
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
@@ -130,6 +130,9 @@ pub trait UnitProcess {
         cal_u_v: ExitLineFunc,
         mfr_need: f64,
     ) -> Option<MocPoint>;
+
+    /// 返回面积建模方式（轴对称/平面），用于质量流量计算
+    fn area_type(&self) -> AreaType;
 
     // 下面这三个暂时用不到
     // fn direct_walld_point(&self, context: Context) -> Option<MocPoint>;

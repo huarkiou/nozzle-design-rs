@@ -1,8 +1,8 @@
 use num_traits::{Num, ToPrimitive};
 
 use crate::{
-    Tolerance,
     rootfinding::{RootBracket, RootFindingError},
+    Tolerance,
 };
 
 pub fn max_iterations<T>(interval: T, tol: T, ndivide: usize) -> usize
@@ -14,7 +14,11 @@ where
         / (ndivide as f64).log2())
     .round() as usize
         + 1;
-    if ret < 1 { 1 } else { ret }
+    if ret < 1 {
+        1
+    } else {
+        ret
+    }
 }
 
 /// 二分搜索法查找函数根

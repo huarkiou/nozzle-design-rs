@@ -1,7 +1,7 @@
 use crate::moc::unitprocess::UnitprocessConfig;
 use crate::moc::{
-    CharLine, MocPoint,
     unitprocess::{Context, ExitLineFunc, UnitProcess},
+    AreaType, CharLine, MocPoint,
 };
 
 /// 无旋特征线法的基本计算过程
@@ -495,14 +495,18 @@ impl UnitProcess for Irrotational {
 
         Some(pr)
     }
+
+    fn area_type(&self) -> AreaType {
+        self.conf.axisym
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        Material,
         moc::{AreaType, CharLine},
+        Material,
     };
     use math::Tolerance;
 

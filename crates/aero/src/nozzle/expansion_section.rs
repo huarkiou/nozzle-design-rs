@@ -75,11 +75,10 @@ impl ExpansionSection {
         // 寻找 line_prev 上合适的区间使左行特征线通过 p_init
         let wall_info = (p_init.x, p_init.y, p_init.flow_direction());
         let mut wall_point = p_init.clone();
-        let mut start_idx: usize = 0;
+        // start_idx 至少为 1，避免 interior_point 将壁面点与自身比较
+        let mut start_idx: usize = 1;
 
         for idx_prev in 0..n_prev.saturating_sub(1) {
-            // 需要创建临时的 CharLine 来构造 Context
-            // line_cur 初始只有壁面点（预估），inverse_wall_point 会精化它
             let mut tmp_cur = CharLine::new();
             tmp_cur.push(wall_point.clone());
 
@@ -90,7 +89,8 @@ impl ExpansionSection {
                 idx_next: 0,
             };
             if let Some(refined) = unitprocess.inverse_wall_point(context, wall_info) {
-                if refined.is_valid() && refined.x < max_length {
+                // 壁面点不应跑到上游 (x<0) 或超出最大长度
+                if refined.is_valid() && refined.x >= -1e-9 && refined.x < max_length {
                     wall_point = refined;
                     start_idx = idx_prev + 1;
                     break;
@@ -136,7 +136,8 @@ impl ExpansionSection {
         }
 
         // ── 步骤 3：对称轴边界条件 ──
-        if !line_cur.is_empty() && line_cur.last().unwrap().x < max_length {
+        // 始终尝试计算对称轴点（不因截短而跳过），确保特征线到达 y=0
+        if !line_cur.is_empty() {
             let context = Context {
                 prev: line_prev,
                 next: &line_cur,
@@ -145,7 +146,6 @@ impl ExpansionSection {
             };
             if let Some(point) = unitprocess.symmetry_axis_point(context) {
                 if point.is_valid() {
-                    // 截短至 max_length
                     if point.x > max_length {
                         let p_prev = line_cur.last().unwrap();
                         let ratio = (max_length - p_prev.x) / (point.x - p_prev.x);

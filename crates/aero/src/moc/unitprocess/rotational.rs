@@ -1,5 +1,6 @@
 use crate::moc::unitprocess::UnitProcess;
 use crate::moc::unitprocess::UnitprocessConfig;
+use crate::moc::AreaType;
 
 // /// 有旋特征线法的基本计算过程
 pub struct Rotational {
@@ -56,5 +57,9 @@ impl UnitProcess for Rotational {
         mfr_need: f64,
     ) -> Option<crate::moc::MocPoint> {
         todo!()
+    }
+
+    fn area_type(&self) -> AreaType {
+        self.conf.axisym
     }
 }

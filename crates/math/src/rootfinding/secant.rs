@@ -1,4 +1,4 @@
-use crate::{Tolerance, rootfinding::RootFindingError};
+use crate::{rootfinding::RootFindingError, Tolerance};
 
 /// 使用割线法（Secant Method）求解一维非线性方程 f(x) = 0
 ///
