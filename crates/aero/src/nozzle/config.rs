@@ -1,6 +1,6 @@
 use crate::moc::{
-    AreaType,
     unitprocess::{Irrotational, Rotational, UnitProcess, UnitprocessConfig},
+    AreaType,
 };
 use math::Tolerance;
 use serde::{Deserialize, Serialize};

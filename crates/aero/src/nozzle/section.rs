@@ -1,5 +1,5 @@
 use crate::{
-    moc::{CharLines, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines},
     nozzle::NozzleConfig,
 };
 
@@ -23,4 +23,10 @@ pub trait Section {
     /// # 返回值
     /// 指向当前截面段所有特征线的不可变引用
     fn get_charlines(&self) -> &CharLines;
+
+    /// 将上一截面段最后一条特征线作为当前段的初始边界条件传入。
+    ///
+    /// 默认实现为空操作。只有需要从前一段接收数据的截面段
+    /// （如 `InitialSection` 需要 `InitialLine` 的输出）才需覆盖此方法。
+    fn inherit_last_line(&mut self, _line: &CharLine) {}
 }

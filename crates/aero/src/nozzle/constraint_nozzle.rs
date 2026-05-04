@@ -1,6 +1,6 @@
 use crate::{
-    moc::{CharLines, unitprocess::UnitProcess},
-    nozzle::{NozzleConfig, Section, initial_line::InitialLine},
+    moc::{unitprocess::UnitProcess, CharLines},
+    nozzle::{initial_line::InitialLine, InitialSection, NozzleConfig, Section},
 };
 
 pub struct ConstraintNozzle {
@@ -15,19 +15,30 @@ impl ConstraintNozzle {
         Self {
             unitprocess: config.to_unitprocess(),
             config,
-            sections: vec![Box::new(InitialLine::new())],
+            sections: vec![
+                Box::new(InitialLine::new()),
+                Box::new(InitialSection::new()),
+            ],
         }
     }
 
     /// 计算喷管各段内流场数据
     ///
-    /// 按顺序对每个段执行特征线法计算步骤。
-    ///
-    /// 计算顺序为 `self.sections` 中存储的顺序，
-    /// 前一个截面段的计算结果作为下一截面段的初始边界条件。
+    /// 按顺序对每个段执行特征线法计算步骤，
+    /// 前一个截面段的最后一条特征线作为下一截面段的初始边界条件传入。
     pub fn run(&mut self) {
-        for section in self.sections.iter_mut() {
-            section.run(self.unitprocess.as_ref(), &self.config);
+        for i in 0..self.sections.len() {
+            if i > 0 {
+                // 先克隆上一段最后一条特征线（释放不可变借用），再传给当前段
+                let last_line = {
+                    let prev_lines = self.sections[i - 1].get_charlines();
+                    prev_lines.last().cloned()
+                };
+                if let Some(line) = last_line {
+                    self.sections[i].inherit_last_line(&line);
+                }
+            }
+            self.sections[i].run(self.unitprocess.as_ref(), &self.config);
         }
     }
 
@@ -46,7 +57,7 @@ impl ConstraintNozzle {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{Material, nozzle::config::*};
+    use crate::{nozzle::config::*, Material};
 
     use super::*;
     #[test]

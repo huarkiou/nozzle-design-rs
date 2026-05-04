@@ -1,179 +1,218 @@
+"""OTN 喷管特征线法流场可视化。
+
+生成两幅图:
+1. 特征线散点图 — 每条右行特征线用不同颜色连线+标记点,
+   用于观察特征线走向、间距, 判断算法逻辑是否存在问题。
+2. 马赫数云图 — 基于 Delaunay 三角剖分的填充等值线,
+   用于观察结果数值是否正确。
+
+用法:
+    python tools/otn-plot_contour.py
+    (需先从项目根目录执行 `cargo test -p aero -- test_new_and_run`
+     生成 target/tmp/fluid_field.txt)
+"""
+
 import os
-import numpy as np
+import pathlib
+
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import scipy.interpolate
+import numpy as np
 import scienceplots  # noqa: F401
+from matplotlib.tri import Triangulation
 
-# 启用 scienceplots 风格（更学术美观）
-plt.style.use(["science", "no-latex"])  # 或 'ieee', 'grid' 等
-# plt.rcParams['text.usetex'] = True  # 如需 LaTeX 渲染可开启
-
-# 全局配置（避免重复设置）
-plt.rcParams.update(
-    {
-        "font.size": 12,
-        "axes.labelsize": 14,
-        "axes.titlesize": 14,
-        "legend.fontsize": 12,
-        "figure.figsize": (8, 6),
-    }
-)
+plt.style.use(["science", "no-latex"])
+plt.rcParams.update({
+    "font.size": 12,
+    "axes.labelsize": 14,
+    "axes.titlesize": 14,
+    "legend.fontsize": 10,
+    "figure.figsize": (10, 6),
+})
 
 
-def load_fluid_data(filepath: str) -> tuple[np.ndarray, ...]:
-    """加载流场数据，自动跳过含 NaN 的行，并返回命名字段。
+# ── 数据加载 ──────────────────────────────────────────────────
 
-    返回: (x, y, p, rho, T, Ma)
+def load_fluid_data_grouped(filepath: str) -> list[np.ndarray]:
+    """按空行分组读取流场数据, 保留每条特征线的独立结构。
+
+    fluid_field.txt 格式: 逗号分隔, 10 列, 空行分隔不同的特征线组。
+    列: x, y, V, theta, p, rho, T, Rg, gamma, Ma
+
+    Returns:
+        groups: 每条特征线为一个 (n_points × 10) 的 ndarray。
+                第一条为初值线 (IVL), 后续为右行特征线。
     """
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"数据文件不存在: {filepath}")
 
-    try:
-        data = np.loadtxt(filepath, delimiter=",")
-    except Exception as e:
-        raise ValueError(f"无法加载数据文件 {filepath}: {e}")
+    groups: list[np.ndarray] = []
+    current: list[list[float]] = []
 
-    # 去除含 NaN/Inf 的行
-    mask = np.isfinite(data).all(axis=1)
-    data = data[mask]
-    if data.size == 0:
-        raise ValueError("数据为空或全为无效值（NaN/Inf）")
+    with open(filepath, "r") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line:
+                if current:
+                    arr = np.array(current)
+                    # 筛掉含 NaN/Inf 的行
+                    arr = arr[np.isfinite(arr).all(axis=1)]
+                    if len(arr) >= 2:
+                        groups.append(arr)
+                    current = []
+            else:
+                try:
+                    current.append([float(v) for v in line.split(",")])
+                except ValueError:
+                    continue
+        if current:
+            arr = np.array(current)
+            arr = arr[np.isfinite(arr).all(axis=1)]
+            if len(arr) >= 2:
+                groups.append(arr)
 
-    # 字段映射（建议用 dict 或 namedtuple，此处保持简洁）
-    x, y = data[:, 0], data[:, 1]
-    p, rho, T = data[:, 4], data[:, 5], data[:, 6]
-    Ma = data[:, 9]
-
-    return x, y, p, rho, T, Ma
+    if not groups:
+        raise ValueError("未找到有效数据组 (所有行均为空或含 NaN)")
+    return groups
 
 
-def plot_scatter_and_contour(
+# ── 绘制 ──────────────────────────────────────────────────────
+
+def plot_charline_scatter(
+    groups: list[np.ndarray],
+    ax: plt.Axes,
+    title: str = "Characteristic Lines",
+):
+    """逐条特征线绘制连线+散点, 用渐变色区分不同线。
+
+    Args:
+        groups: load_fluid_data_grouped 的输出, 每个 ndarray 对应一条特征线。
+        ax: matplotlib Axes 对象。
+        title: 图标题。
+    """
+    n = len(groups)
+    # 用 tab10 循环色 + 深色到浅色 (wall→axis)
+    colors = plt.cm.plasma(np.linspace(0.05, 0.95, n))
+
+    for i, line in enumerate(groups):
+        x, y = line[:, 0], line[:, 1]
+        ax.plot(x, y, "-o",
+                markersize=2.0 if i == 0 else 1.2,
+                linewidth=0.6 if i == 0 else 0.4,
+                color=colors[i],
+                alpha=0.8)
+
+    # 标注初值线
+    if n > 0:
+        ivl = groups[0]
+        ax.plot(ivl[:, 0], ivl[:, 1], "-o",
+                markersize=2.5, linewidth=1.0,
+                color="black", alpha=0.9, label="Initial Value Line (IVL)")
+
+    ax.set_aspect("equal")
+    ax.set_xlabel(r"$x$ (m)")
+    ax.set_ylabel(r"$y$ (m)")
+    ax.set_title(title)
+    ax.legend(loc="upper right")
+    ax.grid(True, alpha=0.3)
+
+
+def plot_contour_tri(
     x: np.ndarray,
     y: np.ndarray,
-    value: np.ndarray,
-    attr_name: str = "Ma",
-    resolution: int = 256,
+    values: np.ndarray,
+    ax: plt.Axes,
+    attr_name: str = "Mach Number",
     n_levels: int = 30,
-    cmap="viridis",  # 更推荐 viridis/plasma 等感知均匀色图
-    split_at_y0: bool = True,
-    save_path: str | None = None,
+    cmap: str = "plasma",
 ):
-    """绘制散点 + 等值线/填充云图（支持分段插值防伪影）"""
-    if len(x) == 0:
-        raise ValueError("输入数据为空")
+    """基于 Delaunay 三角剖分的填充等值线图。
 
-    fig, ax = plt.subplots()
-    ax.set_aspect("equal")
+    Args:
+        x, y: 所有散点的坐标 (一维数组)。
+        values: 对应每个点的标量值 (一维数组)。
+        ax: matplotlib Axes 对象。
+        attr_name: colorbar 标签。
+        n_levels: 等值线层数。
+        cmap: colormap 名称。
+    """
+    if len(x) < 3:
+        raise ValueError("点太少, 无法三角剖分")
 
-    # 散点图（可选：降低 alpha 避免过密遮挡）
-    scatter = ax.scatter(x, y, c="gray", s=2, alpha=0.4, label="Grid Points")
-
-    # 检查有效范围
-    x_min, x_max = x.min(), x.max()
-    y_min, y_max = y.min(), y.max()
-    if x_min == x_max or y_min == y_max:
-        raise ValueError("x 或 y 坐标无变化，无法绘图")
-
-    # 自动计算 colorbar 范围（排除极端离群值可选）
-    v_min, v_max = np.nanmin(value), np.nanmax(value)
+    v_min, v_max = float(np.nanmin(values)), float(np.nanmax(values))
     if v_min == v_max:
-        v_min -= abs(v_min) * 0.01 or 1e-3
-        v_max += abs(v_max) * 0.01 or 1e-3
-
+        v_min -= max(abs(v_min) * 0.01, 1e-6)
+        v_max += max(abs(v_max) * 0.01, 1e-6)
     levels = np.linspace(v_min, v_max, n_levels + 1)
 
-    # 分段插值：按 y=0 拆分上下流场（避免跨激波插值失真）
-    if split_at_y0:
-        # 找到 y 最接近 0 的索引（更鲁棒：取 sign 变化处）
-        # 简化版：按 y 排序后找零点分割
-        idx_sorted = np.argsort(y)
-        y_sorted = y[idx_sorted]
-        sign_change = np.where(np.diff(np.sign(y_sorted)) != 0)[0]
-        if len(sign_change) > 0:
-            split_idx = idx_sorted[sign_change[0] + 1]
-        else:
-            split_idx = len(x) // 2  # fallback
-    else:
-        split_idx = len(x)
+    tri = Triangulation(x, y)
+    tcf = ax.tricontourf(tri, values, levels=levels, cmap=cmap, alpha=0.9)
 
-    def _contour_segment(x_seg, y_seg, val_seg):
-        if len(x_seg) < 4:  # 插值至少需几个点
-            return None
-        try:
-            xi = np.linspace(x_seg.min(), x_seg.max(), resolution)
-            yi = np.linspace(y_seg.min(), y_seg.max(), resolution)
-            Xi, Yi = np.meshgrid(xi, yi)
-            Zi = scipy.interpolate.griddata(
-                (x_seg, y_seg), val_seg, (Xi, Yi), method="linear", fill_value=np.nan
-            )
-            return ax.contourf(Xi, Yi, Zi, levels=levels, cmap=cmap, alpha=0.85)
-        except Exception as e:
-            print(f"插值失败（段）: {e}")
-            return None
+    ax.set_aspect("equal")
+    ax.set_xlabel(r"$x$ (m)")
+    ax.set_ylabel(r"$y$ (m)")
+    ax.set_title(f"{attr_name} Contour (Delaunay Triangulation)")
 
-    cset = None
-    # 上半场
-    if split_idx > 0:
-        cset = _contour_segment(x[:split_idx], y[:split_idx], value[:split_idx])
-    # 下半场
-    if split_idx < len(x):
-        cset2 = _contour_segment(x[split_idx:], y[split_idx:], value[split_idx:])
-        if cset is None and cset2 is not None:
-            cset = cset2
-
-    if cset is None:
-        raise RuntimeError("所有插值段均失败，请检查数据分布")
-
-    # 坐标轴
-    ax.set_xlim(x_min, x_max)
-    ax.set_ylim(y_min, y_max)
-    ax.set_xlabel(r"$x / y_t$")
-    ax.set_ylabel(r"$y / y_t$")
-    ax.set_title(f"{attr_name} Contour")
-
-    # Colorbar
-    cbar = fig.colorbar(cset, ax=ax, orientation="horizontal", pad=0.12, aspect=30)
-    cbar.set_label(attr_name, fontsize=14)
-    # 智能 tick：约 5~7 个主刻度
+    cbar = plt.colorbar(tcf, ax=ax, orientation="horizontal",
+                        pad=0.12, aspect=30)
+    cbar.set_label(attr_name, fontsize=12)
     tick_step = max(1, n_levels // 6)
     cbar.set_ticks(levels[::tick_step])
 
-    # 可选：添加等值线（增强结构）
-    # ax.contour(Xi, Yi, Zi, levels=levels[::3], colors='k', linewidths=0.3, alpha=0.5)
 
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"图像已保存至: {save_path}")
-
-    plt.show()
-
+# ── 主流程 ────────────────────────────────────────────────────
 
 def main():
-    # 构建路径（更健壮：使用 pathlib）
-    import pathlib
+    proj_root = pathlib.Path(__file__).resolve().parent.parent
+    data_path = proj_root / "target" / "tmp" / "fluid_field.txt"
+    out_dir = proj_root / "target" / "tmp" / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    tmp_dir = pathlib.Path(__file__).parent.resolve() / "../target/tmp"
-    filepath = tmp_dir / "fluid_field.txt"
-    filepath = filepath.resolve()
-
+    print(f"读取数据: {data_path}")
     try:
-        x, y, p, rho, T, Ma = load_fluid_data(str(filepath))
-        plot_scatter_and_contour(
-            x,
-            y,
-            Ma,
-            attr_name="Mach Number",
-            resolution=256,  # 512 可能过大，256 足够且快；可调
-            cmap="plasma",
-            save_path=str(tmp_dir / "output/ma_contour.png"),  # 可选保存
-        )
-    except Exception as e:
-        print(f"❌ 运行出错: {e}")
-        import traceback
+        groups = load_fluid_data_grouped(str(data_path))
+    except FileNotFoundError:
+        print(f"❌ 数据文件不存在. 请先运行: cargo test -p aero -- test_new_and_run")
+        return
+    except ValueError as e:
+        print(f"❌ 数据错误: {e}")
+        return
 
-        traceback.print_exc()
+    print(f"共 {len(groups)} 条特征线 (第一条为初值线 IVL)")
+
+    # 统计每条特征线的点数
+    for i, g in enumerate(groups):
+        label = "IVL (初值线)" if i == 0 else f"特征线 #{i}"
+        print(f"  {label}: {len(g)} 个点, "
+              f"x=[{g[:, 0].min():.4f}, {g[:, 0].max():.4f}], "
+              f"y=[{g[:, 1].min():.4f}, {g[:, 1].max():.4f}]")
+
+    # 摊平所有点用于轮廓图 (保留分组结构用于散点图)
+    all_pts = np.vstack(groups)
+    x_all, y_all = all_pts[:, 0], all_pts[:, 1]
+    Ma_all = all_pts[:, 9]
+
+    print(f"总点数: {len(all_pts)}, "
+          f"Ma 范围: [{Ma_all.min():.4f}, {Ma_all.max():.4f}]")
+
+    # ── 图1: 特征线散点图 ──
+    fig1, ax1 = plt.subplots()
+    plot_charline_scatter(groups, ax1,
+                          title="MOC Characteristic Lines (Right-Running)")
+    fig1.tight_layout()
+    scatter_path = out_dir / "charline_scatter.png"
+    fig1.savefig(scatter_path, dpi=200, bbox_inches="tight")
+    print(f"散点图已保存: {scatter_path}")
+
+    # ── 图2: 马赫数云图 ──
+    fig2, ax2 = plt.subplots()
+    plot_contour_tri(x_all, y_all, Ma_all, ax2,
+                     attr_name="Mach Number", cmap="plasma")
+    fig2.tight_layout()
+    contour_path = out_dir / "ma_contour.png"
+    fig2.savefig(contour_path, dpi=200, bbox_inches="tight")
+    print(f"云图已保存: {contour_path}")
+
+    plt.show()
 
 
 if __name__ == "__main__":
