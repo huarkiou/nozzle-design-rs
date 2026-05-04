@@ -111,6 +111,10 @@ impl ExpansionSection {
             };
             if let Some(point) = unitprocess.interior_point(context) {
                 if point.is_valid() && point.y > 0.0 {
+                    // 首个内点若在壁面上游，跳过（对应 C++ cal_next_expansion_line L149）
+                    if line_cur.len() == 1 && line_cur[0].x > point.x {
+                        continue;
+                    }
                     let x_check = point.x;
                     line_cur.push(point);
 
@@ -176,8 +180,6 @@ impl Section for ExpansionSection {
         }
 
         self.char_lines = CharLines::new();
-        // 将初始线作为第一条特征线加入（与 C++ 行为一致）
-        self.char_lines.push(self.line_init.clone());
 
         // 喉部圆弧起点 = 初始线的壁面点（line_init 反转后 [0]=壁面）
         let p_wall = self.line_init.first().unwrap();
@@ -188,8 +190,10 @@ impl Section for ExpansionSection {
         let r_t = self.radius_throat;
         let theta_a = self.theta_a;
 
-        // 无效膨胀角时直接跳过（NaN 或 ≤0 均无膨胀）
+        // 无效膨胀角时直接跳过（NaN 或 ≤0 均无膨胀），
+        // 但仍将 line_init 传递给下游段
         if !theta_a.is_finite() || theta_a <= 0.0 {
+            self.char_lines.push(self.line_init.clone());
             self.calculated = true;
             return;
         }
@@ -203,17 +207,25 @@ impl Section for ExpansionSection {
         let mut iter_count = 0u32;
         const MAX_ITER: u32 = 500;
 
+        // 从 line_init 开始逐条计算膨胀特征线
+        let mut prev_line = self.line_init.clone();
+        let mut prev_theta = prev_line[0].flow_direction();
+
         // 主循环：沿喉部圆弧逐条计算膨胀特征线
-        while self.char_lines.last().unwrap()[0].flow_direction() < theta_a - 1e-12 {
+        while prev_theta < theta_a - 1e-12 {
             iter_count += 1;
             if iter_count > MAX_ITER {
                 // 防止死循环：达到最大迭代次数后强制退出
                 break;
             }
-            let prev_line = self.char_lines.last().unwrap();
-            let prev_theta = prev_line[0].flow_direction();
             let target_theta = if is_ending {
-                theta_a
+                // 逐步减小步长平滑逼近 theta_a，避免壁面点跳跃
+                let step = dtheta * 0.5;
+                if prev_theta + step >= theta_a {
+                    theta_a
+                } else {
+                    prev_theta + step
+                }
             } else {
                 prev_theta + dtheta
             };
@@ -232,7 +244,7 @@ impl Section for ExpansionSection {
             };
 
             let line_cur =
-                Self::cal_next_expansion_line(unitprocess, prev_line, &p_init, self.max_length);
+                Self::cal_next_expansion_line(unitprocess, &prev_line, &p_init, self.max_length);
 
             if line_cur.is_empty() {
                 break;
@@ -268,7 +280,9 @@ impl Section for ExpansionSection {
 
             let reached_theta_a = (line_cur[0].flow_direction() - theta_a).abs() < 1e-9;
 
-            self.char_lines.push(line_cur);
+            self.char_lines.push(line_cur.clone());
+            prev_theta = line_cur[0].flow_direction();
+            prev_line = line_cur;
 
             if reached_theta_a {
                 break;

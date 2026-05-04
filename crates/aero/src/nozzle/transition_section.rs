@@ -121,7 +121,7 @@ impl TransitionSection {
                                     line_cur.remove(1);
                                     continue;
                                 }
-                                if px > old_wall_x + 1e-12 || k == max_k {
+                                if px > old_wall_x + 1e-12 {
                                     line_cur[0] = point;
                                     break;
                                 }

@@ -218,6 +218,23 @@ impl UnitProcess for Irrotational {
                 }
             }
 
+            // 对应 C++ inverse_wall_point 中 interpolate_point 返回 offset 检查：
+            // p3 若在 p2 外侧（远离壁面方向），返回 None 使膨胀段循环推进到下一线段
+            {
+                let dx = p2.x - p1.x;
+                let dy = p2.y - p1.y;
+                let t = if dy.abs() > 1e-20 {
+                    (p3.y - p1.y) / dy
+                } else if dx.abs() > 1e-20 {
+                    (p3.x - p1.x) / dx
+                } else {
+                    0.0
+                };
+                if t > 1.0 + 1e-8 {
+                    return None;
+                }
+            }
+
             // 沿着左行特征线p3-pr
             let (_, qp, rp, sp) = self.cal_lqrs_left(&((&pr + &p3) / 2.));
             let tp = sp * (pr.x - p3.x) + qp * p3.u + rp * p3.v;
