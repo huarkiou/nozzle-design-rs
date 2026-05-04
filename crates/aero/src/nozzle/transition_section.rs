@@ -80,24 +80,34 @@ impl TransitionSection {
                 }
 
                 if line_cur.len() == 2 {
-                    let context = Context {
-                        prev: line_prev,
-                        next: &line_cur,
-                        idx_prev: 0,
-                        idx_next: 0,
-                    };
-                    if let Some(point) = unitprocess.last_point(
-                        context,
-                        Box::new({
-                            let f = Rc::clone(cal_exit);
-                            move |y, p| f(y, p)
-                        }),
-                        mfr_in,
-                    ) {
-                        if point.is_valid() && point.x >= -1e-9 {
-                            line_cur = CharLine::new();
-                            line_cur.push(point);
-                            break;
+                    // C++: 质量流量达标后缩减为单出口点
+                    let exit_point = &line_cur[ju];
+                    let last_prev = line_prev.last().unwrap();
+                    let mfr_slice = [last_prev.clone(), exit_point.clone()];
+                    let mfr_exit = f64::abs(CharLine::mass_flow_rate(
+                        &mfr_slice,
+                        unitprocess.area_type(),
+                    ));
+                    if (mfr_exit - mfr_in) > -1e-7 {
+                        let context = Context {
+                            prev: line_prev,
+                            next: &line_cur,
+                            idx_prev: 0,
+                            idx_next: 0,
+                        };
+                        if let Some(point) = unitprocess.last_point(
+                            context,
+                            Box::new({
+                                let f = Rc::clone(cal_exit);
+                                move |y, p| f(y, p)
+                            }),
+                            mfr_in,
+                        ) {
+                            if point.is_valid() && point.x >= -1e-9 {
+                                line_cur = CharLine::new();
+                                line_cur.push(point);
+                                break;
+                            }
                         }
                     }
                 }
@@ -128,6 +138,14 @@ impl TransitionSection {
                             }
                         }
                         k += 1;
+                    }
+                    // C++ distance cleanup: 壁面点与第一内点过近则移除内点
+                    if line_cur.len() >= 3 {
+                        let d01 = line_cur[0].distance_to(&line_cur[1]);
+                        let d12 = line_cur[1].distance_to(&line_cur[2]);
+                        if d01 < 0.2 * d12 {
+                            line_cur.remove(1);
+                        }
                     }
                 }
             } else {

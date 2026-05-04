@@ -314,11 +314,15 @@ impl UnitProcess for Irrotational {
         cal_u_v: ExitLineFunc,
         dist: f64,
     ) -> Option<MocPoint> {
-        // let p1 = &context.next[context.idx_next];
-        let p2 = &context.prev[context.idx_prev];
+        let p2 = &context.prev[context.idx_prev]; // C++ points[0]: prev line's last (axis) point
+                                                  // C++ points[2]: second-to-last point on prev line, used for initial estimate & total params
+        let p2_prev = if context.idx_prev > 0 {
+            &context.prev[context.idx_prev - 1]
+        } else {
+            p2
+        };
 
-        // let mut pr = (p1 + p2) / 2.;
-        let mut pr = p2.clone();
+        let mut pr = (p2 + p2_prev) / 2.; // C++: initial = average of two points
         let mut theta_p = p2.flow_direction() + (1. / p2.mach_number()).asin();
         for _ in 0..self.conf.n_corr {
             let pr_prev = pr.clone();
@@ -338,11 +342,11 @@ impl UnitProcess for Irrotational {
             theta_p = pt.flow_direction() + (1. / pt.mach_number()).asin();
         }
 
-        // let (tt, pt, rt) = tuple_average_3f64(
-        //     p1.total_temperature_pressure_density(),
-        //     p2.total_temperature_pressure_density(),
-        // );
-        let (tt, pt, rt) = p2.total_temperature_pressure_density();
+        // C++: average total parameters from both reference points
+        let (tt, pt, rt) = tuple_average_3f64(
+            p2_prev.total_temperature_pressure_density(),
+            p2.total_temperature_pressure_density(),
+        );
         pr.set_temperature_pressure_density(tt, pt, rt);
 
         Some(pr)
