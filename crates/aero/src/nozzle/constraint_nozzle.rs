@@ -282,4 +282,147 @@ mod tests {
         output_dir.push("../../target/tmp/fluid_field_expansion.txt");
         lines.write_to_file(output_dir, false).unwrap();
     }
+
+    /// 诊断测试：非零喉部半径下膨胀段-转向段壁面连续性检查
+    #[test]
+    fn test_wall_continuity_with_arc() {
+        let config = NozzleConfig {
+            control: Control::default(),
+            material: Material::from_rgas_gamma(287.042, 1.4),
+            inlet: Inlet::default(),
+            geometry: Geometry::default(),
+            throat: Throat {
+                radius_throat: 0.5,             // 非零喉部过渡圆弧半径
+                theta_a: 25.0_f64.to_radians(), // 25° 初始膨胀角
+            },
+            outlet: Outlet::default(),
+            io: IO::default(),
+        };
+        let mut n = ConstraintNozzle::new_otn(config);
+        n.run();
+
+        let exp_lines = n.sections[2].get_charlines();
+        let trans_lines = n.sections[3].get_charlines();
+
+        println!("\n=== 膨胀段-转向段壁面连续性诊断 ===");
+        println!("膨胀段特征线条数: {}", exp_lines.len());
+        println!("转向段特征线条数: {}", trans_lines.len());
+
+        // 膨胀段最后一个壁面点
+        if let Some(exp_last) = exp_lines.last() {
+            let exp_wall = &exp_last[0];
+            println!(
+                "\n膨胀段最后壁面点: x={:.6}, y={:.6}, θ={:.4}°",
+                exp_wall.x,
+                exp_wall.y,
+                exp_wall.flow_direction().to_degrees()
+            );
+        }
+
+        // 转向段第一个壁面点
+        if let Some(trans_first) = trans_lines.first() {
+            if !trans_first.is_empty() {
+                let trans_wall = &trans_first[0];
+                println!(
+                    "转向段第一个壁面点: x={:.6}, y={:.6}, θ={:.4}°",
+                    trans_wall.x,
+                    trans_wall.y,
+                    trans_wall.flow_direction().to_degrees()
+                );
+            } else {
+                println!("转向段第一条特征线为空！");
+            }
+        }
+
+        // 计算两段壁面点之间的距离
+        if let (Some(exp_last), Some(trans_first)) = (exp_lines.last(), trans_lines.first()) {
+            if !exp_last.is_empty() && !trans_first.is_empty() {
+                let exp_wall = &exp_last[0];
+                let trans_wall = &trans_first[0];
+                let gap = exp_wall.distance_to(trans_wall);
+                let dx = trans_wall.x - exp_wall.x;
+                let dy = trans_wall.y - exp_wall.y;
+                println!("\n壁面点间距: {:.6e} m", gap);
+                println!("  Δx = {:.6e} m", dx);
+                println!("  Δy = {:.6e} m", dy);
+
+                // 打印膨胀段最后5个壁面点
+                println!("\n膨胀段最后5个壁面点:");
+                let start = exp_lines.len().saturating_sub(5);
+                for i in start..exp_lines.len() {
+                    let p = &exp_lines[i][0];
+                    println!(
+                        "  [{:>3}] x={:>10.6}, y={:>10.6}, θ={:>6.2}°",
+                        i,
+                        p.x,
+                        p.y,
+                        p.flow_direction().to_degrees()
+                    );
+                }
+
+                // 打印转向段前5个壁面点
+                println!("\n转向段前5个壁面点:");
+                let end = (trans_lines.len()).min(5);
+                for i in 0..end {
+                    let p = &trans_lines[i][0];
+                    println!(
+                        "  [{:>3}] x={:>10.6}, y={:>10.6}, θ={:>6.2}°",
+                        i,
+                        p.x,
+                        p.y,
+                        p.flow_direction().to_degrees()
+                    );
+                }
+
+                if gap > 0.01 {
+                    println!("\n⚠️  壁面点间距过大 ({:.4} m)，可能存在不连续！", gap);
+                } else if gap > 1e-6 {
+                    println!("\n⚠️  壁面有微小间隙 ({:.6e} m)，可能是求解器衔接问题", gap);
+                } else {
+                    println!("\n✅ 壁面连续，间距在容差范围内");
+                }
+
+                // 检查膨胀段壁面点是否都在圆弧上
+                println!("\n膨胀段壁面点与理论圆弧的偏差:");
+                let x0 = exp_lines[0][0].x;
+                let y0 = exp_lines[0][0].y;
+                let r_t = 0.5;
+                for i in 0..exp_lines.len() {
+                    let p = &exp_lines[i][0];
+                    // 理论圆弧: x = x0 + r_t*sin(θ), y = y0 + r_t*(1-cos(θ))
+                    // 反推 theta = asin((x - x0) / r_t)
+                    let sin_theta = ((p.x - x0) / r_t).clamp(-1.0, 1.0);
+                    let theta_arc = sin_theta.asin();
+                    let x_theory = x0 + r_t * theta_arc.sin();
+                    let y_theory = y0 + r_t * (1.0 - theta_arc.cos());
+                    let err = ((p.x - x_theory).powi(2) + (p.y - y_theory).powi(2)).sqrt();
+                    if err > 1e-6 {
+                        println!(
+                            "  [{:>3}] 偏差={:.3e} m  (实际 x={:.6} y={:.6}  理论 x={:.6} y={:.6})",
+                            i, err, p.x, p.y, x_theory, y_theory
+                        );
+                    }
+                }
+            }
+        }
+
+        // 写入输出文件
+        let lines = n.get_assembly_charlines();
+        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        output_dir.push("../../target/tmp/fluid_field_continuity_check.txt");
+        lines.write_to_file(output_dir, false).unwrap();
+
+        // 验证所有点有效
+        for (li, line) in lines.iter().enumerate() {
+            for (pi, point) in line.iter().enumerate() {
+                assert!(point.is_valid(), "无效点: line={li} pt={pi}");
+                assert!(
+                    point.x >= -1e-9 && point.y >= -1e-9,
+                    "坐标越界: line={li} pt={pi}: x={}, y={}",
+                    point.x,
+                    point.y
+                );
+            }
+        }
+    }
 }
