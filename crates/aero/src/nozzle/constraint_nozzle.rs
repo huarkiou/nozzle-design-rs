@@ -12,12 +12,10 @@ pub struct ConstraintNozzle {
 impl ConstraintNozzle {
     /// 构建最大推力喷管OTN
     pub fn new_otn(config: NozzleConfig) -> Self {
-        let mut sections: Vec<Box<dyn Section>> = Vec::new();
-        sections.push(Box::new(InitialLine::new()));
         Self {
             unitprocess: config.to_unitprocess(),
             config,
-            sections,
+            sections: vec![Box::new(InitialLine::new())],
         }
     }
 

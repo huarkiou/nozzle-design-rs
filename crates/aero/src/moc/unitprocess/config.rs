@@ -14,9 +14,6 @@ pub struct UnitprocessConfig {
 
 impl UnitprocessConfig {
     pub fn is_axisymmetric(&self) -> bool {
-        match self.axisym {
-            AreaType::Axisymmetric => true,
-            _ => false,
-        }
+        matches!(self.axisym, AreaType::Axisymmetric)
     }
 }

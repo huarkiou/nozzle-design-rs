@@ -131,9 +131,9 @@ impl Material {
                             * x)
                         * x
             };
-            if 100. <= t && t <= 1000. {
+            if (100. ..=1000.).contains(&t) {
                 poly1(t)
-            } else if 1000. < t && t <= 3000. {
+            } else if (1000. ..=3000.).contains(&t) {
                 poly2(t)
             } else if t < 100. {
                 poly1(100.)
@@ -159,9 +159,9 @@ impl Material {
                     + (-0.06138349 + (2.027963e-05 + (-3.075525e-09 + 1.888054e-13 * x) * x) * x)
                         * x
             };
-            if 200. <= t && t <= 1000. {
+            if (200. ..=1000.).contains(&t) {
                 poly1(t)
-            } else if 1000. < t && t <= 6000. {
+            } else if (1000. ..=6000.).contains(&t) {
                 poly2(t)
             } else if t < 200. {
                 poly1(200.)

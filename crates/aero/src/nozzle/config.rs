@@ -1,6 +1,6 @@
 use crate::moc::{
     AreaType,
-    unitprocess::{Rotational, UnitProcess, UnitprocessConfig},
+    unitprocess::{Irrotational, Rotational, UnitProcess, UnitprocessConfig},
 };
 use math::Tolerance;
 use serde::{Deserialize, Serialize};
@@ -179,7 +179,7 @@ impl Default for Outlet {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IO {
     output_prefix: String, // 输出文件名的前缀
 }
@@ -187,14 +187,6 @@ pub struct IO {
 impl IO {
     pub fn validate(&self) -> Result<(), String> {
         Ok(())
-    }
-}
-
-impl Default for IO {
-    fn default() -> Self {
-        Self {
-            output_prefix: Default::default(),
-        }
     }
 }
 
@@ -258,7 +250,7 @@ impl NozzleConfig {
         self.throat.validate()?;
         self.outlet.validate()?;
         self.io.validate()?;
-        if self.control.axisymmetric == false && self.geometry.width <= 0. {
+        if !self.control.axisymmetric && self.geometry.width <= 0. {
             Err("在二维平面问题中第三维深度应为正数".to_string())
         } else {
             Ok(())
@@ -295,7 +287,7 @@ impl NozzleConfig {
     // Build MOC Unit-Process Provider
     pub fn to_unitprocess(&self) -> Box<dyn UnitProcess> {
         if self.control.irrotational {
-            Box::new(Rotational {
+            Box::new(Irrotational {
                 conf: self.to_unitprocess_config(),
             })
         } else {

@@ -35,6 +35,12 @@ impl CharLine {
     }
 }
 
+impl Default for CharLine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CharLine {
     /// 计算通过给定特征线上的质量流量。
     ///

@@ -156,7 +156,7 @@ impl MocPoint {
 
     /// 计算总温T* 单位：K
     pub fn total_temperature(&self) -> f64 {
-        return self.t + self.velocity_squared() / (2. * self.cp(self.t));
+        self.t + self.velocity_squared() / (2. * self.cp(self.t))
     }
 
     /// 计算总压p* 单位：Pa
@@ -164,7 +164,7 @@ impl MocPoint {
         let ma = self.mach_number();
         let sub_exp1 = self.gamma(self.t) - 1.;
         let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
-        return self.p * sub_exp2.powf(self.gamma(self.t) / sub_exp1);
+        self.p * sub_exp2.powf(self.gamma(self.t) / sub_exp1)
     }
 
     /// 计算总密度ρ* 单位：kg/m^3
@@ -172,7 +172,7 @@ impl MocPoint {
         let ma = self.mach_number();
         let sub_exp1 = self.gamma(self.t) - 1.;
         let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
-        return self.rho * sub_exp2.powf(1. / sub_exp1);
+        self.rho * sub_exp2.powf(1. / sub_exp1)
     }
 
     /// 计算总参数 (总温、总压、总密度)
@@ -230,7 +230,7 @@ impl MocPoint {
 
     /// 速度(u,v)是否收敛
     pub fn is_velocity_converged_with(&self, other: &Self, tol: Tolerance) -> bool {
-        tol.approx_eq(self.u, other.u) && tol.approx_eq(self.v, self.v)
+        tol.approx_eq(self.u, other.u) && tol.approx_eq(self.v, other.v)
     }
 
     /// 所有参数是否收敛
@@ -465,8 +465,7 @@ impl MocPoint {
             return 0.0; // p1 == p2，退化情况
         }
 
-        let t = ((self.x - p1.x) * dx + (self.y - p1.y) * dy) / len_sq;
-        t // 可根据需要 clamp 到 [0, 1] 或保留外插
+        ((self.x - p1.x) * dx + (self.y - p1.y) * dy) / len_sq // 可根据需要 clamp 到 [0, 1] 或保留外插
     }
 }
 

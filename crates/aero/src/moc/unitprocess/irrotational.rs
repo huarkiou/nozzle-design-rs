@@ -257,7 +257,7 @@ impl UnitProcess for Irrotational {
         }
 
         let mut pr = (p1 + p2) / 2.;
-        (pr.u, pr.v) = cal_u_v(pr.y, &p1);
+        (pr.u, pr.v) = cal_u_v(pr.y, p1);
         for _ in 0..self.conf.n_corr {
             let pr_prev = pr.clone();
 
@@ -268,7 +268,7 @@ impl UnitProcess for Irrotational {
             pr.y = p1.y + lp * (pr.x - p1.x);
 
             // 解速度
-            (pr.u, pr.v) = cal_u_v(pr.y, &p1);
+            (pr.u, pr.v) = cal_u_v(pr.y, p1);
 
             // 检查是否收敛
             if pr.is_position_converged_with(&pr_prev, self.conf.tol)
@@ -477,7 +477,7 @@ impl UnitProcess for Irrotational {
         let p3 = &context.prev[context.idx_prev + 1];
 
         // 预估p3到pr的距离
-        let mut d3r = p3.distance_to(&p2) / 2.;
+        let mut d3r = p3.distance_to(p2) / 2.;
 
         let mut pr = p2.clone();
         for _ in 0..self.conf.n_corr {
@@ -485,8 +485,8 @@ impl UnitProcess for Irrotational {
             let theta = pt.flow_direction() + (1. / pt.mach_number()).asin();
             pr.x = p3.x + d3r * theta.cos();
             pr.y = p3.y + d3r * theta.sin();
-            (pr.u, pr.v) = cal_u_v(pr.y, &p3);
-            let mfr_cur = CharLine::mass_flow_rate(&vec![pr.clone(), p3.clone()], self.conf.axisym);
+            (pr.u, pr.v) = cal_u_v(pr.y, p3);
+            let mfr_cur = CharLine::mass_flow_rate(&[pr.clone(), p3.clone()], self.conf.axisym);
             if (mfr_need - mfr_cur).abs() < mfr_need * self.conf.tol.rel {
                 break;
             }

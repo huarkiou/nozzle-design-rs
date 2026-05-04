@@ -1,5 +1,5 @@
+mod base;
 mod piecewisepolynomial;
-mod polynomial;
 
+pub use base::Polynomial;
 pub use piecewisepolynomial::PiecewisePolynomial;
-pub use polynomial::Polynomial;

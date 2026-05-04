@@ -31,9 +31,9 @@ impl Section for InitialLine {
         let initial_line = if config.inlet.ma < 1.0 {
             panic!("the Mach number of inlet flow cannot be lower than 1.0");
         } else if config.inlet.ma < 1.01 {
-            cal_initial_value_line_sauers(&config)
+            cal_initial_value_line_sauers(config)
         } else {
-            cal_initial_value_line_direct(&config)
+            cal_initial_value_line_direct(config)
         };
 
         self.char_lines = initial_line;
@@ -160,7 +160,7 @@ fn cal_initial_value_line_sauers(config: &NozzleConfig) -> CharLines {
         }
 
         let v = c_crit * (1.0 + alpha * x + c2 * y * y);
-        x = x - epsilon;
+        x -= epsilon;
 
         let t = t_total / (1.0 + (gamma - 1.0) / 2.0 * (v * v) / (gamma * rg));
         let p = p_total * (t / t_total).powf(gamma / (gamma - 1.0));

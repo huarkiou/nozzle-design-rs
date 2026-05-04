@@ -23,6 +23,8 @@ impl InitialSection {
         line_prev: &CharLine,
         p_init: &MocPoint,
     ) -> CharLine {
+        todo!();
+        /*
         let mut line_cur = Vec::with_capacity(line_prev.len() + 2);
         let context: Context;
 
@@ -65,6 +67,7 @@ impl InitialSection {
         }
 
         line_cur
+        */
     }
 }
 
@@ -84,7 +87,7 @@ impl Section for InitialSection {
         let init_iter = self.line_init.iter().rev().skip(1);
 
         for point in init_iter {
-            line_cur = Self::cal_next_ivp_line(unitprocess, &line_cur, point);
+            let line_cur = Self::cal_next_ivp_line(unitprocess, &line_cur, point);
             if !line_cur.is_empty() {
                 self.char_lines.push(line_cur);
             }

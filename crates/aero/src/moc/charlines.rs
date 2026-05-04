@@ -45,6 +45,12 @@ impl CharLines {
     }
 }
 
+impl Default for CharLines {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CharLines {
     pub fn write_to_file<P: AsRef<Path>>(&self, filepath: P, append: bool) -> std::io::Result<()> {
         // 确保父目录存在

@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Polynomial {
     /// 常数项
     constant: f64,
@@ -13,16 +13,6 @@ pub struct Polynomial {
 impl From<f64> for Polynomial {
     fn from(value: f64) -> Self {
         Polynomial::from_constant(value)
-    }
-}
-
-impl Default for Polynomial {
-    fn default() -> Self {
-        Self {
-            constant: Default::default(),
-            coefficients_positive: Default::default(),
-            coefficients_negative: Default::default(),
-        }
     }
 }
 
