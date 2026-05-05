@@ -1,5 +1,5 @@
 use crate::{
-    moc::{CharLine, CharLines, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines},
     nozzle::NozzleConfig,
 };
 
@@ -7,6 +7,16 @@ use crate::{
 ///
 /// 每个 `Section` 实例代表喷管几何中的一个特定区域，
 /// 通过特征线方法进行流场计算。
+///
+/// # 生命周期
+///
+/// Section 遵循 **先设置边界条件，再运行** 的模式：
+/// 1. 构造或通过 `inherit_last_line` 传入上一段的出口线作为本段入口条件
+/// 2. 调用 `run()` 执行特征线推进计算
+/// 3. 调用 `get_charlines()` 获取计算结果
+///
+/// 如果 `run()` 尚未被调用，`get_charlines()` 返回**空特征线集合**（而非 panic）。
+/// 调用者应通过 `char_lines.is_empty()` 判断是否已有可用结果。
 pub trait Section {
     /// 执行当前截面段的计算步骤
     ///
@@ -16,9 +26,17 @@ pub trait Section {
     /// # 参数
     /// * `unitprocess` - 单元过程对象，提供超音速流的特征线法计算方法
     /// * `config` - 喷管配置参数，包含几何和物理参数等
+    ///
+    /// # 幂等性
+    ///
+    /// 重复调用 `run()` 会**重新计算**并覆盖之前的结果。
+    /// 不会跳过已计算状态（无内部 `calculated` 标记）。
     fn run(&mut self, unitprocess: &dyn UnitProcess, config: &NozzleConfig);
 
-    /// 获取当前截面段的特征线数据，不包括作为初始边界条件的第一条特征线，仅包括通过run计算出来的新结果
+    /// 获取当前截面段的特征线数据
+    ///
+    /// 返回当前已有的特征线集合。如果 `run()` 尚未被调用，
+    /// 返回空集合（不包含之前段的初始线）。
     ///
     /// # 返回值
     /// 指向当前截面段所有特征线的不可变引用

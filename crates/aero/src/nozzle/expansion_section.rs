@@ -1,7 +1,7 @@
 use crate::{
     moc::{
-        CharLine, CharLines, MocPoint,
         unitprocess::{Context, UnitProcess},
+        CharLine, CharLines, MocPoint,
     },
     nozzle::Section,
 };
@@ -25,7 +25,6 @@ pub struct ExpansionSection {
     pub max_length: f64,
     /// 超出最大长度的截短线
     pub line_cut: CharLine,
-    calculated: bool,
 }
 
 impl ExpansionSection {
@@ -38,16 +37,14 @@ impl ExpansionSection {
             theta_a,
             max_length,
             line_cut: CharLine::new(),
-            calculated: false,
         }
     }
 
-    /// 设置初始线，并重置计算状态
+    /// 设置初始线，并清除已有的计算结果
     pub fn set_line_init(&mut self, line_init: CharLine) {
         self.line_init = line_init;
         self.char_lines = CharLines::new();
         self.line_cut = CharLine::new();
-        self.calculated = false;
     }
 
     /// 根据前一条右行特征线，和当前右行特征线壁面点坐标和切向，
@@ -188,7 +185,6 @@ impl ExpansionSection {
 impl Section for ExpansionSection {
     fn set_theta_a(&mut self, theta_a: f64) {
         self.theta_a = theta_a;
-        self.calculated = false;
     }
 
     fn run(&mut self, unitprocess: &dyn UnitProcess, _config: &super::NozzleConfig) {
@@ -196,9 +192,6 @@ impl Section for ExpansionSection {
             !self.line_init.is_empty(),
             "ExpansionSection: line_init 必须在 run() 之前设置"
         );
-        if self.calculated {
-            return;
-        }
 
         self.char_lines = CharLines::new();
 
@@ -215,7 +208,6 @@ impl Section for ExpansionSection {
         // 但仍将 line_init 传递给下游段
         if !theta_a.is_finite() || theta_a <= 0.0 {
             self.char_lines.push(self.line_init.clone());
-            self.calculated = true;
             return;
         }
 
@@ -344,14 +336,9 @@ impl Section for ExpansionSection {
         }
         // 反转使 line_cut 从上壁面到轴线排列
         self.line_cut.reverse();
-
-        self.calculated = true;
     }
 
     fn get_charlines(&self) -> &CharLines {
-        if !self.calculated {
-            panic!("ExpansionSection has not run, cannot get result!");
-        }
         &self.char_lines
     }
 

@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use crate::{
     moc::{
-        CharLine, CharLines, MocPoint,
         unitprocess::{Context, ExitLineFunc, UnitProcess},
+        CharLine, CharLines, MocPoint,
     },
     nozzle::Section,
 };
@@ -13,7 +13,6 @@ pub struct TransitionSection {
     pub line_init: CharLine,
     cal_exit: Rc<dyn Fn(f64, &MocPoint) -> (f64, f64)>,
     pub max_length: f64,
-    calculated: bool,
 }
 
 impl TransitionSection {
@@ -23,14 +22,12 @@ impl TransitionSection {
             line_init: CharLine::new(),
             cal_exit: Rc::from(cal_exit),
             max_length,
-            calculated: false,
         }
     }
 
     pub fn set_line_init(&mut self, line_init: CharLine) {
         self.line_init = line_init;
         self.char_lines = CharLines::new();
-        self.calculated = false;
     }
 
     fn cal_next_transition_line(
@@ -179,11 +176,7 @@ impl Section for TransitionSection {
             !self.line_init.is_empty(),
             "TransitionSection: line_init must be set"
         );
-        if self.calculated {
-            return;
-        }
         if self.line_init.len() < 2 {
-            self.calculated = true;
             return;
         }
 
@@ -222,11 +215,9 @@ impl Section for TransitionSection {
                 break;
             }
         }
-        self.calculated = true;
     }
 
     fn get_charlines(&self) -> &CharLines {
-        assert!(self.calculated, "TransitionSection has not run");
         &self.char_lines
     }
 

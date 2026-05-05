@@ -1,7 +1,7 @@
 use crate::{
     moc::{
-        CharLine, CharLines, MocPoint,
         unitprocess::{Context, UnitProcess},
+        CharLine, CharLines, MocPoint,
     },
     nozzle::Section,
 };
@@ -17,7 +17,6 @@ pub struct InitialSection {
     pub char_lines: CharLines,
     /// 开始计算的起始线(初值线)，应在调用 [`run`](Section::run) 之前设置
     pub line_init: CharLine,
-    calculated: bool,
 }
 
 impl InitialSection {
@@ -26,7 +25,6 @@ impl InitialSection {
         Self {
             char_lines: CharLines::new(),
             line_init: CharLine::new(),
-            calculated: false,
         }
     }
 
@@ -35,15 +33,13 @@ impl InitialSection {
         Self {
             char_lines: CharLines::new(),
             line_init,
-            calculated: false,
         }
     }
 
-    /// 设置初值线，并重置计算状态
+    /// 设置初值线，并清除已有的计算结果
     pub fn set_line_init(&mut self, line_init: CharLine) {
         self.line_init = line_init;
         self.char_lines = CharLines::new();
-        self.calculated = false;
     }
 
     /// 根据前一条右行特征线和当前右行特征线的第一点（壁面点），
@@ -111,9 +107,6 @@ impl Section for InitialSection {
             !self.line_init.is_empty(),
             "InitialSection: line_init 必须在 run() 之前设置"
         );
-        if self.calculated {
-            return;
-        }
 
         self.char_lines = CharLines::new();
 
@@ -131,13 +124,9 @@ impl Section for InitialSection {
                 self.char_lines.push(line_cur.clone());
             }
         }
-        self.calculated = true;
     }
 
     fn get_charlines(&self) -> &CharLines {
-        if !self.calculated {
-            panic!("InitialSection has not run, cannot get result!");
-        }
         &self.char_lines
     }
 

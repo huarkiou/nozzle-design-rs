@@ -1,6 +1,6 @@
 use crate::moc::{
-    CharLine, CharLines, MocPoint,
     unitprocess::{Context, UnitProcess},
+    CharLine, CharLines, MocPoint,
 };
 
 /// MOC 容差（与 Control.eps 默认值一致）
@@ -22,7 +22,6 @@ pub struct UniformSection {
     pub line_exit: CharLine,
     /// 喷管目标长度
     pub length: f64,
-    calculated: bool,
 }
 
 impl UniformSection {
@@ -32,7 +31,6 @@ impl UniformSection {
             line_init: CharLine::new(),
             line_exit: CharLine::new(),
             length,
-            calculated: false,
         }
     }
 
@@ -43,9 +41,10 @@ impl UniformSection {
     ///
     /// 首条 line_prev = line_init（膨胀段下游点），
     /// 后续 line_prev = 前一步算出的 line_cur。
+    ///
+    /// 如果 `line_init` 或 `line_exit` 为空，则直接返回不做计算。
     pub fn run(&mut self, unitprocess: &dyn UnitProcess) {
         if self.line_init.is_empty() || self.line_exit.is_empty() {
-            self.calculated = true;
             return;
         }
 
@@ -60,8 +59,6 @@ impl UniformSection {
                 line_prev = line_cur;
             }
         }
-
-        self.calculated = true;
     }
 
     /// 计算出口边界特征线。
