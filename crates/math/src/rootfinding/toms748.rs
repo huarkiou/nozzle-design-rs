@@ -1,5 +1,5 @@
 use crate::{
-    rootfinding::{BisectBracket, RootFindingError},
+    rootfinding::{RootBracket, RootFindingError},
     Tolerance,
 };
 
@@ -16,7 +16,7 @@ pub fn solve_bracket<F>(
     f: &F,
     tol: Tolerance,
     max_iter: usize,
-) -> Result<BisectBracket<f64>, RootFindingError>
+) -> Result<RootBracket<f64>, RootFindingError>
 where
     F: Fn(f64) -> f64,
 {
@@ -36,7 +36,7 @@ where
 
     // 检查端点是否本身就是根
     if f_left == 0.0 {
-        return Ok(BisectBracket {
+        return Ok(RootBracket {
             lo: left,
             hi: left,
             flo: f_left,
@@ -46,7 +46,7 @@ where
         });
     }
     if f_right == 0.0 {
-        return Ok(BisectBracket {
+        return Ok(RootBracket {
             lo: right,
             hi: right,
             flo: f_right,
@@ -74,7 +74,7 @@ where
         let tol = tol.to_f64(right.abs().max(left));
 
         if (right - left).abs() < 2.0 * tol {
-            return Ok(BisectBracket {
+            return Ok(RootBracket {
                 lo: left,
                 hi: right,
                 flo: f_left,
@@ -99,7 +99,7 @@ where
                 if (s_iqi - left) * (s_iqi - right) < 0.0 {
                     let fs = f(s_iqi);
                     if fs == 0.0 {
-                        return Ok(BisectBracket {
+                        return Ok(RootBracket {
                             lo: s_iqi,
                             hi: s_iqi,
                             flo: 0.0,
@@ -127,7 +127,7 @@ where
         if (s_sec - left) * (s_sec - right) < 0.0 {
             let fs = f(s_sec);
             if fs == 0.0 {
-                return Ok(BisectBracket {
+                return Ok(RootBracket {
                     lo: s_sec,
                     hi: s_sec,
                     flo: 0.0,
@@ -148,7 +148,7 @@ where
             let s_bi = 0.5 * (left + right);
             let fs = f(s_bi);
             if fs == 0.0 {
-                return Ok(BisectBracket {
+                return Ok(RootBracket {
                     lo: s_bi,
                     hi: s_bi,
                     flo: 0.0,
@@ -168,7 +168,7 @@ where
     }
 
     // 达到最大迭代次数，仍返回当前区间
-    Ok(BisectBracket {
+    Ok(RootBracket {
         lo: left,
         hi: right,
         flo: f_left,

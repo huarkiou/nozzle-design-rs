@@ -1,58 +1,6 @@
 use num_traits::{Num, ToPrimitive};
 
-use crate::rootfinding::RootFindingError;
-
-/// 二分搜索结果（泛型域）。
-///
-/// `T = f64` 用于连续域根查找，`T = i64` 用于整数域索引搜索。
-#[derive(Debug, Clone, Copy)]
-pub struct BisectBracket<T> {
-    pub lo: T,
-    pub hi: T,
-    pub flo: f64,
-    pub fhi: f64,
-    pub iterations: usize,
-    pub converged: bool,
-}
-
-impl BisectBracket<f64> {
-    /// 取区间中点作为根的近似解
-    pub fn root(&self) -> f64 {
-        self.lo / 2.0 + self.hi / 2.0
-    }
-}
-
-impl<T> BisectBracket<T> {
-    /// 区间内是否一定存在根
-    pub fn has_root(&self) -> bool {
-        self.flo * self.fhi <= 0.0
-    }
-
-    /// 是否已收敛
-    pub fn is_converged(&self) -> bool {
-        self.converged
-    }
-}
-
-impl BisectBracket<i64> {
-    /// 取两端点中函数值更接近零的索引
-    pub fn best_index(&self) -> i64 {
-        if self.flo.abs() < self.fhi.abs() {
-            self.lo
-        } else {
-            self.hi
-        }
-    }
-
-    /// 取两端点中函数值更接近零的值
-    pub fn best_value(&self) -> f64 {
-        if self.flo.abs() < self.fhi.abs() {
-            self.flo
-        } else {
-            self.fhi
-        }
-    }
-}
+use crate::rootfinding::{RootBracket, RootFindingError};
 
 /// 预测达到指定精度所需的最大二分迭代次数
 pub fn max_iterations<T>(interval: T, tol: T, ndivide: usize) -> usize
@@ -74,13 +22,6 @@ where
 /// 通用二分法查找函数根所在区间。
 ///
 /// 参数化中点计算和收敛判定，同时支持连续域（f64）和整数域（i64）。
-///
-/// # 参数
-/// - `lo`, `hi`: 搜索区间，要求 `f(lo) * f(hi) <= 0`
-/// - `f`: 目标函数 `T -> f64`
-/// - `midpoint`: 中点计算，如 `|a, b| (a + b) / 2`
-/// - `is_done`: 收敛判定，如 `|a, b| b - a <= 1`（整数）或 tolerance 比较（浮点）
-/// - `max_iter`: 最大迭代次数
 pub fn solve_bracket<T, F, M, C>(
     lo: T,
     hi: T,
@@ -88,7 +29,7 @@ pub fn solve_bracket<T, F, M, C>(
     midpoint: M,
     is_done: C,
     max_iter: usize,
-) -> Result<BisectBracket<T>, RootFindingError>
+) -> Result<RootBracket<T>, RootFindingError>
 where
     T: Copy,
     F: Fn(T) -> f64,
@@ -127,7 +68,7 @@ where
     }
 
     let converged = iterations < max_iter && is_done(left, right);
-    Ok(BisectBracket {
+    Ok(RootBracket {
         lo: left,
         hi: right,
         flo: f_left,
@@ -144,19 +85,16 @@ mod tests {
 
     const MAX_ITER: usize = 100;
 
-    // ── f64 ──
-
     fn float_bracket(
         f: impl Fn(f64) -> f64,
         a: f64,
         b: f64,
         tol: Tolerance,
         max_iter: usize,
-    ) -> Result<BisectBracket<f64>, RootFindingError> {
-        // 端点为精确根时直接返回
+    ) -> Result<RootBracket<f64>, RootFindingError> {
         let fa = f(a);
         if fa == 0.0 {
-            return Ok(BisectBracket {
+            return Ok(RootBracket {
                 lo: a,
                 hi: a,
                 flo: fa,
@@ -167,7 +105,7 @@ mod tests {
         }
         let fb = f(b);
         if fb == 0.0 {
-            return Ok(BisectBracket {
+            return Ok(RootBracket {
                 lo: b,
                 hi: b,
                 flo: fb,
@@ -186,6 +124,8 @@ mod tests {
         )
     }
 
+    // ── f64 ──
+
     #[test]
     fn test_max_iterations_predict() {
         assert_eq!(max_iterations(10 - 1, 1, 2), 4);
@@ -200,6 +140,24 @@ mod tests {
         assert!(r.converged);
         assert!((r.hi - r.lo) < 2.0 * tol.to_f64(1.0));
         assert!(r.has_root());
+    }
+
+    #[test]
+    fn test_float_cubic() {
+        let f = |x: f64| x.powi(3) - x - 2.0;
+        let tol = Tolerance::new(1e-10, 1e-10);
+        let r = float_bracket(f, 1.0, 2.0, tol, MAX_ITER).unwrap();
+        assert!(r.converged);
+        assert!(r.has_root());
+    }
+
+    #[test]
+    fn test_float_root_at_endpoint() {
+        let f = |x: f64| x;
+        let r = float_bracket(f, 0.0, 1.0, Tolerance::new(1e-10, 1e-10), MAX_ITER).unwrap();
+        assert!(r.converged);
+        assert_eq!(r.lo, 0.0);
+        assert_eq!(r.hi, 0.0);
     }
 
     #[test]
@@ -279,7 +237,7 @@ mod tests {
         lo: i64,
         hi: i64,
         max_iter: usize,
-    ) -> Result<BisectBracket<i64>, RootFindingError> {
+    ) -> Result<RootBracket<i64>, RootFindingError> {
         if lo >= hi {
             return Err(RootFindingError::InvalidInterval);
         }
