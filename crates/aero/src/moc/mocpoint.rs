@@ -5,7 +5,7 @@ use std::{
 
 use math::Tolerance;
 
-use crate::{isentropic, Material};
+use crate::{Material, isentropic};
 
 /// 描述超声速流场中的任一点的气流参数
 #[derive(Clone, Debug)]
@@ -142,11 +142,7 @@ impl MocPoint {
     /// 计算马赫数Ma 单位：1
     pub fn mach_number(&self) -> f64 {
         let ma = self.velocity_squared() / self.sound_speed_squared();
-        if ma < 1. {
-            1.
-        } else {
-            ma.sqrt()
-        }
+        if ma < 1. { 1. } else { ma.sqrt() }
     }
 
     /// 同时计算声速和马赫数

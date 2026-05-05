@@ -1,0 +1,10 @@
+[package]
+name = "optimumnozzle"
+version = "0.1.0"
+edition = "2024"
+description = "Optimal Thrust Nozzle generator using Method of Characteristics"
+
+[dependencies]
+aero = { path = "../../crates/aero" }
+math = { path = "../../crates/math" }
+clap = { version = "4", features = ["derive"] }

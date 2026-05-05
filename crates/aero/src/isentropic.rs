@@ -1,4 +1,4 @@
-use math::{rootfinding::toms748, Tolerance};
+use math::{Tolerance, rootfinding::toms748};
 
 use crate::Cp;
 

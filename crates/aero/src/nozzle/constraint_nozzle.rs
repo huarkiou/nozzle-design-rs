@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
+    moc::{CharLine, CharLines, MocPoint, unitprocess::UnitProcess},
     nozzle::{
-        initial_line::InitialLine,
-        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
-        uniform_section::UniformSection,
         ExpansionSection, InitialSection, NozzleConfig, Section,
+        initial_line::InitialLine,
+        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        uniform_section::UniformSection,
     },
 };
-use math::{rootfinding::toms748, Tolerance};
+use math::{Tolerance, rootfinding::toms748};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -217,11 +217,7 @@ fn run_transition_to_target_length(
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
-            if f0.abs() < f_max.abs() {
-                0.0
-            } else {
-                l_max
-            }
+            if f0.abs() < f_max.abs() { 0.0 } else { l_max }
         }
     };
     let mut point_tmp = MocPoint {
@@ -283,6 +279,17 @@ fn trial_best(
 }
 
 impl ConstraintNozzle {
+    /// 获取最终选定的初始膨胀角 theta_a（弧度）。
+    /// 仅在 `run()` 之后才反映自动迭代或用户指定的最终值。
+    pub fn theta_a(&self) -> f64 {
+        self.config.throat.theta_a
+    }
+
+    /// 获取配置的只读引用。
+    pub fn config(&self) -> &NozzleConfig {
+        &self.config
+    }
+
     /// 构建最大推力喷管OTN
     pub fn new_otn(config: NozzleConfig) -> Self {
         let length = config.geometry.length;
@@ -830,8 +837,8 @@ fn merge_exit_boundaries(exit_boundary: &[CharLine], length: f64) -> CharLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nozzle::config::*;
     use crate::Material;
+    use crate::nozzle::config::*;
 
     /// 快速烟雾测试：构造 + 运行固定参数小规模喷管。
     #[test]

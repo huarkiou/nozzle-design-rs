@@ -58,7 +58,7 @@ impl Serialize for Cp {
     {
         match self {
             Self::Constant(cp_value) => serializer.serialize_f64(*cp_value),
-            Self::Variable(cp_func) => serializer.serialize_f64(cp_func(273.15)),
+            Self::Variable(_) => serializer.serialize_f64(f64::NAN),
         }
     }
 }
@@ -154,12 +154,14 @@ mod tests {
 
     #[test]
     fn test_serialize_variable() {
-        // Variable serializes as cp(273.15)
+        // Variable serializes as nan in TOML (round-trip triggers nasa9 fallback)
         let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
-        let json = serde_json::to_string(&cp).unwrap();
-        let expected = 1000.0 + 0.2 * 273.15;
-        let actual: f64 = json.parse().unwrap();
-        assert!((actual - expected).abs() < 1e-10);
+        #[derive(Serialize)]
+        struct W {
+            cp: Cp,
+        }
+        let toml_str = toml::to_string(&W { cp }).unwrap();
+        assert!(toml_str.contains("nan"), "expected nan, got: {toml_str}");
     }
 
     #[test]

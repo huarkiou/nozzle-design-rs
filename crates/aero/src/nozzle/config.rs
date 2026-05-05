@@ -181,7 +181,7 @@ impl Default for Outlet {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IO {
-    output_prefix: String, // 输出文件名的前缀
+    pub output_prefix: String, // 输出文件名的前缀
 }
 
 impl IO {
@@ -215,6 +215,10 @@ impl NozzleConfig {
         let mut config: NozzleConfig = toml::from_str(&contents)?;
         config.inlet.theta = config.inlet.theta.to_radians();
         config.throat.theta_a = config.throat.theta_a.to_radians();
+        // 若 cp 为 nan，使用 NASA 9系数变比热空气模型
+        if config.material.cp(300.0).is_nan() {
+            config.material = Material::air_nasa9piecewise_polynomial();
+        }
         Ok(config)
     }
 

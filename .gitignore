@@ -2,3 +2,8 @@
 .venv
 .omo
 /target
+
+# OptimumNozzle generated output
+field_data.txt
+geo_all.dat
+*.cache.toml
