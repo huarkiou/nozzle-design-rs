@@ -1,61 +1,56 @@
 """OTN 喷管特征线法流场可视化。
 
 对每个 fluid_field*.txt 文件生成两幅图:
-1. 特征线散点图 — 每条右行特征线用不同颜色连线+标记点,
-   用于观察特征线走向、间距, 判断算法逻辑是否存在问题。
-2. 马赫数云图 — 基于 Delaunay 三角剖分的填充等值线,
-   用于观察结果数值是否正确。
+1. 特征线散点图 — 渐变色区分线序, 叠加壁面线和出口线
+2. 流场参数云图 — Delaunay 三角剖分 + 壁面/出口叠加
 
 用法:
-    # 绘制 target/tmp/ 下所有 fluid_field*.txt 文件
-    python tools/otn-plot_contour.py
+    python tools/otn-plot_contour.py                      # 默认所有 fluid_field*.txt
+    python tools/otn-plot_contour.py file1.txt file2.txt  # 指定文件
+    python tools/otn-plot_contour.py --field p            # 压力云图
+    python tools/otn-plot_contour.py --no-show            # 不弹窗
 
-    # 指定单个文件
-    python tools/otn-plot_contour.py target/tmp/fluid_field.txt
-
-    # 指定多个文件
-    python tools/otn-plot_contour.py target/tmp/fluid_field.txt target/tmp/fluid_field_expansion.txt
-
-    (需先从项目根目录执行 `cargo test -p aero -- test_new_and_run test_with_expansion`
-     生成 target/tmp/fluid_field*.txt)
+字段: ma(马赫数,默认), p(压力), t(温度), rho(密度), v(速度)
 """
 
+import argparse
 import os
 import pathlib
 import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scienceplots  # noqa: F401
 from matplotlib.tri import Triangulation
 
-plt.style.use(["science", "no-latex"])
-plt.rcParams.update(
-    {
-        "font.size": 12,
-        "axes.labelsize": 14,
-        "axes.titlesize": 14,
-        "legend.fontsize": 10,
-        "figure.figsize": (10, 6),
-    }
-)
+plt.style.use("default")
+plt.rcParams.update({
+    "font.size": 11, "axes.labelsize": 13,
+    "axes.titlesize": 13, "legend.fontsize": 9,
+    "figure.figsize": (11, 6), "figure.dpi": 120,
+})
+
+# 文件列: x, y, V, theta, p, rho, T, Rg, gamma, Ma
+COL_X, COL_Y = 0, 1
+COL_V, COL_THETA = 2, 3
+COL_P, COL_RHO = 4, 5
+COL_T, COL_RG = 6, 7
+COL_GAMMA, COL_MA = 8, 9
+
+FIELD_META = {
+    "ma":  (COL_MA,   "Mach Number",      "plasma"),
+    "p":   (COL_P,    "Pressure (Pa)",     "coolwarm"),
+    "t":   (COL_T,    "Temperature (K)",   "hot"),
+    "rho": (COL_RHO,  "Density (kg/m^3)",  "viridis"),
+    "v":   (COL_V,    "Velocity (m/s)",    "turbo"),
+}
 
 
 # ── 数据加载 ──────────────────────────────────────────────────
 
-
-def load_fluid_data_grouped(filepath: str) -> list[np.ndarray]:
-    """按空行分组读取流场数据, 保留每条特征线的独立结构。
-
-    fluid_field*.txt 格式: 逗号分隔, 10 列, 空行分隔不同的特征线组。
-    列: x, y, V, theta, p, rho, T, Rg, gamma, Ma
-
-    Returns:
-        groups: 每条特征线为一个 (n_points × 10) 的 ndarray。
-                第一条为初值线 (IVL), 后续为右行特征线。
-    """
+def load_fluid_data(filepath: str) -> list[np.ndarray]:
+    """按空行分组读取流场数据, 返回每条特征线的 ndarray。"""
     if not os.path.isfile(filepath):
-        raise FileNotFoundError(f"数据文件不存在: {filepath}")
+        raise FileNotFoundError(f"文件不存在: {filepath}")
 
     groups: list[np.ndarray] = []
     current: list[list[float]] = []
@@ -82,71 +77,52 @@ def load_fluid_data_grouped(filepath: str) -> list[np.ndarray]:
                 groups.append(arr)
 
     if not groups:
-        raise ValueError("未找到有效数据组 (所有行均为空或含 NaN)")
+        raise ValueError("未找到有效数据")
     return groups
 
 
 # ── 绘制 ──────────────────────────────────────────────────────
 
-
-def plot_charline_scatter(
-    groups: list[np.ndarray],
-    ax: plt.Axes,
-    title: str = "Characteristic Lines",
-):
-    """逐条特征线绘制连线+散点, 用渐变色区分不同线。"""
+def plot_charline_scatter(groups: list[np.ndarray], ax: plt.Axes,
+                          title: str = "Characteristic Lines"):
+    """特征线散点图: 渐变色 + 壁面/出口高亮。"""
     n = len(groups)
-    colors = plt.cm.plasma(np.linspace(0.05, 0.95, n))  # ty:ignore[unresolved-attribute]
+    colors = plt.cm.viridis(np.linspace(0.05, 0.95, max(n, 2)))
 
-    for i, line in enumerate(groups):
-        x, y = line[:, 0], line[:, 1]
-        if len(line) >= 2:
-            ax.plot(
-                x, y, "-o",
-                markersize=2.0 if i == 0 else 1.2,
-                linewidth=0.6 if i == 0 else 0.4,
-                color=colors[i],
-                alpha=0.8,
-            )
+    for i, g in enumerate(groups):
+        x, y = g[:, COL_X], g[:, COL_Y]
+        if len(g) >= 2:
+            ax.plot(x, y, "-", linewidth=0.3, color=colors[i], alpha=0.7)
         else:
-            ax.plot(
-                x, y, "o",
-                markersize=3.0, color=colors[i], alpha=0.9,
-            )
+            ax.plot(x, y, "o", markersize=2, color=colors[i], alpha=0.9)
 
-    if n > 0:
-        ivl = groups[0]
-        ax.plot(
-            ivl[:, 0],
-            ivl[:, 1],
-            "-o",
-            markersize=2.5,
-            linewidth=1.0,
-            color="black",
-            alpha=0.9,
-            label="Initial Value Line (IVL)",
-        )
+    # 壁面线: 每条特征线第一点 (跳过 IVL 和 Exit)
+    wall_pts = [g[0] for g in groups[1:-1]]
+    wall = np.array(wall_pts)
+    ax.plot(wall[:, COL_X], wall[:, COL_Y], "-",
+            color="black", linewidth=1.2, label="Wall", zorder=10)
+
+    # 出口线: 最后一条 (所有点 x~=length)
+    last = groups[-1]
+    if np.all(np.abs(last[:, COL_X] - last[0, COL_X]) < 1e-3):
+        ax.plot(last[:, COL_X], last[:, COL_Y], "-",
+                color="red", linewidth=2.0, label="Exit Line", zorder=10)
 
     ax.set_aspect("equal")
     ax.set_xlabel(r"$x$ (m)")
     ax.set_ylabel(r"$y$ (m)")
     ax.set_title(title)
-    ax.legend(loc="upper right")
-    ax.grid(True, alpha=0.3)
+    ax.legend(loc="upper right", framealpha=0.8)
+    ax.grid(True, alpha=0.2)
 
 
-def plot_contour_tri(
-    x: np.ndarray,
-    y: np.ndarray,
-    values: np.ndarray,
-    ax: plt.Axes,
-    attr_name: str = "Mach Number",
-    n_levels: int = 30,
-    cmap: str = "plasma",
-):
-    """基于 Delaunay 三角剖分的填充等值线图。"""
+def plot_contour_tri(x, y, values, ax, attr_name="Mach Number",
+                     cmap="plasma", n_levels=40,
+                     wall_line=None, exit_line=None):
+    """Delaunay 三角剖分填充等值线图, 叠加壁面/出口。"""
     if len(x) < 3:
-        raise ValueError("点太少, 无法三角剖分")
+        ax.text(0.5, 0.5, "Too few points", transform=ax.transAxes, ha="center")
+        return
 
     v_min, v_max = float(np.nanmin(values)), float(np.nanmax(values))
     if v_min == v_max:
@@ -154,111 +130,168 @@ def plot_contour_tri(
         v_max += max(abs(v_max) * 0.01, 1e-6)
     levels = np.linspace(v_min, v_max, n_levels + 1)
 
-    tri = Triangulation(x, y)
+    tri = _safe_triangulation(x, y)
+    if tri is None:
+        ax.text(0.5, 0.5, "Triangulation failed",
+                transform=ax.transAxes, ha="center")
+        return
+
     tcf = ax.tricontourf(tri, values, levels=levels, cmap=cmap, alpha=0.9)
+
+    if wall_line is not None and len(wall_line) >= 2:
+        ax.plot(wall_line[:, 0], wall_line[:, 1], "-",
+                color="black", linewidth=1.2, zorder=10)
+    if exit_line is not None and len(exit_line) >= 2:
+        ax.plot(exit_line[:, 0], exit_line[:, 1], "-",
+                color="red", linewidth=1.5, zorder=10)
 
     ax.set_aspect("equal")
     ax.set_xlabel(r"$x$ (m)")
     ax.set_ylabel(r"$y$ (m)")
-    ax.set_title(f"{attr_name} Contour (Delaunay Triangulation)")
+    ax.set_title(f"{attr_name} Contour")
 
-    cbar = plt.colorbar(tcf, ax=ax, orientation="horizontal", pad=0.12, aspect=30)
-    cbar.set_label(attr_name, fontsize=12)
-    tick_step = max(1, n_levels // 6)
-    cbar.set_ticks(levels[::tick_step])  # ty:ignore[invalid-argument-type]
-
-
-def print_group_summary(groups: list[np.ndarray], label_width: int = 20):
-    """打印每条特征线的统计信息。"""
-    for i, g in enumerate(groups):
-        lbl = "IVL (初值线)" if i == 0 else f"特征线 #{i}"
-        print(
-            f"  {lbl:<{label_width}} {len(g):>5} 个点, "
-            f"x=[{g[:, 0].min():.4f}, {g[:, 0].max():.4f}], "
-            f"y=[{g[:, 1].min():.4f}, {g[:, 1].max():.4f}]"
-        )
+    cbar = plt.colorbar(tcf, ax=ax, orientation="horizontal", pad=0.10, aspect=35)
+    cbar.set_label(attr_name, fontsize=11)
+    tick_step = max(1, n_levels // 8)
+    cbar.set_ticks(levels[::tick_step])
 
 
-def process_one_file(data_path: pathlib.Path, out_dir: pathlib.Path):
-    """对单个数据文件生成散点图+云图。
+def _safe_triangulation(x, y):
+    """安全的三角剖分, 退化时加微小扰动。"""
+    try:
+        return Triangulation(x, y)
+    except Exception:
+        pass
+    try:
+        rng = np.random.default_rng(42)
+        return Triangulation(
+            x + rng.uniform(-1e-8, 1e-8, len(x)),
+            y + rng.uniform(-1e-8, 1e-8, len(y)))
+    except Exception:
+        return None
 
-    Args:
-        data_path: fluid_field*.txt 的路径。
-        out_dir: 输出目录的根 (会创建以文件名命名的子目录)。
-    """
-    stem = data_path.stem  # e.g. "fluid_field" or "fluid_field_expansion"
+
+# ── 摘要 ──────────────────────────────────────────────────────
+
+def print_summary(groups: list[np.ndarray]):
+    """打印特征线统计。"""
+    n = len(groups)
+    ivl = groups[0]
+    last = groups[-1]
+    total_pts = sum(len(g) for g in groups)
+
+    print(f"  {n} charlines, {total_pts} total points")
+    print(f"  IVL: {len(ivl)} pts, "
+          f"x={ivl[0, COL_X]:.3f}, y=[{ivl[-1, COL_Y]:.3f}..{ivl[0, COL_Y]:.3f}]")
+
+    if np.all(np.abs(last[:, COL_X] - last[0, COL_X]) < 1e-3):
+        print(f"  Exit line: {len(last)} pts, "
+              f"x={last[0, COL_X]:.3f}, "
+              f"y=[{last[-1, COL_Y]:.3f}..{last[0, COL_Y]:.3f}]")
+
+    mid = groups[n // 2]
+    print(f"  x: [{ivl[0, COL_X]:.3f}..{last[-1, COL_X]:.3f}], "
+          f"y: [{last[-1, COL_Y]:.3f}..{mid[0, COL_Y]:.3f}]")
+
+
+# ── 单文件处理 ────────────────────────────────────────────────
+
+def process_one_file(data_path: pathlib.Path, out_dir: pathlib.Path,
+                     field: str = "ma", show: bool = True):
+    stem = data_path.stem
     file_out_dir = out_dir / stem
     file_out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'=' * 60}")
-    print(f"读取数据: {data_path}")
+    print(f"读取: {data_path}")
     try:
-        groups = load_fluid_data_grouped(str(data_path))
+        groups = load_fluid_data(str(data_path))
     except FileNotFoundError:
-        print("  ⚠ 文件不存在, 跳过")
+        print("  skip: file not found")
         return
     except ValueError as e:
-        print(f"  ⚠ 数据错误: {e}")
+        print(f"  skip: {e}")
         return
 
-    print(f"共 {len(groups)} 条特征线")
-    print_group_summary(groups, label_width=15)
+    print_summary(groups)
 
     all_pts = np.vstack(groups)
-    x_all, y_all = all_pts[:, 0], all_pts[:, 1]
-    Ma_all = all_pts[:, 9]
+    x_all, y_all = all_pts[:, COL_X], all_pts[:, COL_Y]
 
-    print(f"总点数: {len(all_pts)}, Ma 范围: [{Ma_all.min():.4f}, {Ma_all.max():.4f}]")
+    # 壁面线 / 出口线
+    wall_line = np.array([g[0] for g in groups[1:-1]])
+    last = groups[-1]
+    is_exit = np.all(np.abs(last[:, COL_X] - last[0, COL_X]) < 1e-3)
+    exit_line = last if is_exit else None
 
-    # ── 图1: 特征线散点图 ──
+    # 场参数
+    col_idx, attr_name, cmap = FIELD_META.get(field, FIELD_META["ma"])
+    field_vals = all_pts[:, col_idx]
+    print(f"  {attr_name}: [{field_vals.min():.4g}, {field_vals.max():.4g}]")
+
+    # 图1: 特征线
     fig1, ax1 = plt.subplots()
-    plot_charline_scatter(groups, ax1, title=f"MOC Characteristic Lines — {stem}")
+    plot_charline_scatter(groups, ax1, title=f"MOC — {stem}")
     fig1.tight_layout()
-    scatter_path = file_out_dir / f"{stem}_charline_scatter.png"
-    fig1.savefig(scatter_path, dpi=200, bbox_inches="tight")
-    plt.show()
+    p1 = file_out_dir / f"{stem}_charline_scatter.png"
+    fig1.savefig(p1, dpi=200, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig1)
-    print(f"  散点图 → {scatter_path}")
+    print(f"  scatter → {p1}")
 
-    # ── 图2: 马赫数云图 ──
+    # 图2: 云图
     fig2, ax2 = plt.subplots()
-    plot_contour_tri(x_all, y_all, Ma_all, ax2, attr_name="Mach Number", cmap="plasma")
+    plot_contour_tri(x_all, y_all, field_vals, ax2,
+                     attr_name=attr_name, cmap=cmap,
+                     wall_line=wall_line, exit_line=exit_line)
     fig2.tight_layout()
-    contour_path = file_out_dir / f"{stem}_ma_contour.png"
-    fig2.savefig(contour_path, dpi=200, bbox_inches="tight")
+    suffix = {"ma": "ma", "p": "pressure", "t": "temperature",
+              "rho": "density", "v": "velocity"}.get(field, field)
+    p2 = file_out_dir / f"{stem}_{suffix}_contour.png"
+    fig2.savefig(p2, dpi=200, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig2)
-    print(f"  云图   → {contour_path}")
+    print(f"  contour → {p2}")
 
 
 # ── 主流程 ────────────────────────────────────────────────────
 
-
 def main():
+    parser = argparse.ArgumentParser(description="OTN 喷管流场可视化")
+    parser.add_argument("files", nargs="*", help="fluid_field*.txt 文件")
+    parser.add_argument("--field", "-f", default="ma",
+                        choices=["ma", "p", "t", "rho", "v"],
+                        help="云图字段 (default: ma)")
+    parser.add_argument("--no-show", action="store_true",
+                        help="不弹出 matplotlib 窗口")
+    parser.add_argument("--out", "-o", default=None,
+                        help="输出目录 (default: target/tmp/output)")
+    args = parser.parse_args()
+
     proj_root = pathlib.Path(__file__).resolve().parent.parent
     tmp_dir = proj_root / "target" / "tmp"
-    out_dir = tmp_dir / "output"
+    out_dir = pathlib.Path(args.out) if args.out else (tmp_dir / "output")
 
-    # 收集要处理的文件
-    if len(sys.argv) > 1:
-        # 命令行指定文件
-        file_paths = [pathlib.Path(p).resolve() for p in sys.argv[1:]]
+    if args.files:
+        file_paths = [pathlib.Path(p).resolve() for p in args.files]
     else:
-        # 默认: 所有 fluid_field*.txt
         file_paths = sorted(tmp_dir.glob("fluid_field*.txt"))
 
     if not file_paths:
-        print("未找到任何 fluid_field*.txt 文件。")
-        print("请先运行: cargo test -p aero -- test_new_and_run test_with_expansion")
+        print("未找到 fluid_field*.txt。请先运行:")
+        print("  cargo test -p aero -- test_new_and_run test_with_expansion")
         return
 
-    print(f"将处理 {len(file_paths)} 个文件:")
+    print(f"处理 {len(file_paths)} 文件, field={args.field}:")
     for fp in file_paths:
         print(f"  - {fp}")
 
     for fp in file_paths:
-        process_one_file(fp, out_dir)
+        process_one_file(fp, out_dir, field=args.field, show=not args.no_show)
 
-    print(f"\n完成。输出目录: {out_dir}")
+    print(f"\n完成 → {out_dir}")
 
 
 if __name__ == "__main__":
