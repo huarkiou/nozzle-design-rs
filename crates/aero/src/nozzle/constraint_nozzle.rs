@@ -1,14 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{CharLine, CharLines, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines},
     nozzle::{
-        ExpansionSection, InitialSection, NozzleConfig, Section,
         initial_line::InitialLine,
-        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
+        uniform_section::UniformSection,
+        ExpansionSection, InitialSection, NozzleConfig, Section,
     },
 };
-use math::{Tolerance, rootfinding::toms748};
+use math::{rootfinding::toms748, Tolerance};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -16,6 +17,8 @@ pub struct ConstraintNozzle {
     sections: Vec<Box<dyn Section>>,
     /// 转向段出口边界条件工厂
     cal_exit_factory: fn(bool) -> crate::moc::unitprocess::ExitLineFunc,
+    /// 均一区（填补转向段起始线子集与膨胀段完整最后特征线之间的缺口）
+    uniform_section: UniformSection,
 }
 
 /// 给定膨胀段最后一条特征线，运行转向段并二分搜索使出口 x 逼近目标长度。
@@ -140,6 +143,7 @@ impl ConstraintNozzle {
                 Box::new(TransitionSection::new(make_exit_otn(axisym), length)),
             ],
             cal_exit_factory: make_exit_otn,
+            uniform_section: UniformSection::new(length),
         }
     }
 
@@ -220,6 +224,57 @@ impl ConstraintNozzle {
         }
         self.sections[3].run(self.unitprocess.as_ref(), &self.config);
         self.cal_transition_to_target_length();
+
+        // ── 均一区：填补转向段起始线子集与膨胀段完整最后特征线之间的缺口 ──
+        self.run_uniform_section();
+    }
+
+    /// 构建并运行均一区：从膨胀段最后特征线的"未使用"部分出发，
+    /// 对转向段每个出口点计算对应的右行特征线。
+    fn run_uniform_section(&mut self) {
+        let exp_last_line = match self.sections[2].get_charlines().last() {
+            Some(l) => l,
+            None => return,
+        };
+        let n_exp = exp_last_line.len();
+        if n_exp < 2 {
+            return;
+        }
+
+        // 转向段起始线使用了膨胀段最后特征线的子集（前 trans_init_size 个点），
+        // 均一区 line_init = 剩余的点（靠近对称轴侧）
+        let trans_init_size = self.sections[3]
+            .get_charlines()
+            .first()
+            .map(|l| l.len())
+            .unwrap_or(n_exp);
+
+        let uniform_line_init = if trans_init_size >= n_exp {
+            // 转向段使用了全部点，均一区仅用对称轴点
+            let mut line = CharLine::with_capacity(1);
+            line.push(exp_last_line.last().unwrap().clone());
+            line
+        } else {
+            let count = n_exp - trans_init_size;
+            let mut line = CharLine::with_capacity(count);
+            for pt in exp_last_line.iter().skip(trans_init_size) {
+                line.push(pt.clone());
+            }
+            line
+        };
+
+        // 均一区 line_exit = 每条转向段特征线的最末点（出口点）
+        let mut uniform_line_exit = CharLine::new();
+        for line in self.sections[3].get_charlines().iter() {
+            if let Some(pt) = line.last() {
+                uniform_line_exit.push(pt.clone());
+            }
+        }
+
+        self.uniform_section.line_init = uniform_line_init;
+        self.uniform_section.line_exit = uniform_line_exit;
+        self.uniform_section.length = self.config.geometry.length;
+        self.uniform_section.run(self.unitprocess.as_ref());
     }
 
     /// 自动迭代寻找满足背压（或出口高度）约束的最优初始膨胀角 `theta_a`。
@@ -479,9 +534,47 @@ impl ConstraintNozzle {
 
     pub fn get_assembly_charlines(&self) -> CharLines {
         let mut lines: CharLines = CharLines::new();
-        for section in &self.sections {
-            lines.extend(section.get_charlines());
+
+        // ── 段 0～2：初值线 + 初值问题 + 膨胀段 ──
+        for i in 0..3 {
+            lines.extend(self.sections[i].get_charlines());
         }
+
+        // ── 段 3 + 均一区：逐对合并转向段特征线与均一区扩展线 ──
+        let trans_lines = self.sections[3].get_charlines();
+        let uniform_lines = &self.uniform_section.char_lines;
+
+        if uniform_lines.is_empty() {
+            // 均一区未产生数据时直接追加转向段结果
+            lines.extend(trans_lines);
+        } else {
+            let n = trans_lines.len().min(uniform_lines.len());
+            for i in 0..n {
+                let mut combined =
+                    CharLine::with_capacity(trans_lines[i].len() + uniform_lines[i].len());
+                for pt in trans_lines[i].iter() {
+                    combined.push(pt.clone());
+                }
+                for pt in uniform_lines[i].iter() {
+                    combined.push(pt.clone());
+                }
+                lines.push(combined);
+            }
+            // 剩余转向段线（如有）
+            for i in n..trans_lines.len() {
+                lines.push(trans_lines[i].clone());
+            }
+        }
+
+        // ── 出口边界线 ──
+        let line_cut = self.sections[2].get_line_cut();
+        let exit_line = self
+            .uniform_section
+            .cal_exit_line(self.unitprocess.as_ref(), &line_cut);
+        if !exit_line.is_empty() {
+            lines.push(exit_line);
+        }
+
         lines
     }
 }
@@ -490,7 +583,7 @@ impl ConstraintNozzle {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{Material, nozzle::config::*};
+    use crate::{nozzle::config::*, Material};
 
     use super::*;
     #[test]

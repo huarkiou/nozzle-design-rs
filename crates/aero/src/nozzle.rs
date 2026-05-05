@@ -5,6 +5,7 @@ mod initial_line;
 mod initial_section;
 mod section;
 mod transition_section;
+mod uniform_section;
 
 pub use config::NozzleConfig;
 pub use constraint_nozzle::ConstraintNozzle;

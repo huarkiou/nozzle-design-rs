@@ -35,4 +35,13 @@ pub trait Section {
     /// 用于自动迭代选取 theta_a 时重新运行膨胀段。
     /// 默认实现为空操作。
     fn set_theta_a(&mut self, _theta_a: f64) {}
+
+    /// 获取截短线（仅 ExpansionSection 使用）
+    ///
+    /// 膨胀段中因超出最大允许长度而被截断产生的右边界线，
+    /// 从上壁面排到对称轴。
+    /// 默认实现返回空特征线。
+    fn get_line_cut(&self) -> CharLine {
+        CharLine::new()
+    }
 }

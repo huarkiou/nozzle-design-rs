@@ -319,4 +319,8 @@ impl Section for ExpansionSection {
     fn inherit_last_line(&mut self, line: &CharLine) {
         self.set_line_init(line.clone());
     }
+
+    fn get_line_cut(&self) -> CharLine {
+        self.line_cut.clone()
+    }
 }
