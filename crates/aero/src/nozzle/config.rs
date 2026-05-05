@@ -45,9 +45,9 @@ impl Default for Control {
         Self {
             irrotational: true,
             axisymmetric: true,
-            eps: 1e-7,
+            eps: 1e-5,
             n_correction_max: 40,
-            n_inlet: 101,
+            n_inlet: 61,
         }
     }
 }
