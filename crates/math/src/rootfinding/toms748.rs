@@ -1,5 +1,5 @@
 use crate::{
-    rootfinding::{RootBracket, RootFindingError},
+    rootfinding::{BisectBracket, RootFindingError},
     Tolerance,
 };
 
@@ -16,7 +16,7 @@ pub fn solve_bracket<F>(
     f: &F,
     tol: Tolerance,
     max_iter: usize,
-) -> Result<RootBracket, RootFindingError>
+) -> Result<BisectBracket<f64>, RootFindingError>
 where
     F: Fn(f64) -> f64,
 {
@@ -36,21 +36,21 @@ where
 
     // 检查端点是否本身就是根
     if f_left == 0.0 {
-        return Ok(RootBracket {
-            a: left,
-            b: left,
-            fa: f_left,
-            fb: f_left,
+        return Ok(BisectBracket {
+            lo: left,
+            hi: left,
+            flo: f_left,
+            fhi: f_left,
             iterations: 0,
             converged: true,
         });
     }
     if f_right == 0.0 {
-        return Ok(RootBracket {
-            a: right,
-            b: right,
-            fa: f_right,
-            fb: f_right,
+        return Ok(BisectBracket {
+            lo: right,
+            hi: right,
+            flo: f_right,
+            fhi: f_right,
             iterations: 0,
             converged: true,
         });
@@ -74,11 +74,11 @@ where
         let tol = tol.to_f64(right.abs().max(left));
 
         if (right - left).abs() < 2.0 * tol {
-            return Ok(RootBracket {
-                a: left,
-                b: right,
-                fa: f_left,
-                fb: f_right,
+            return Ok(BisectBracket {
+                lo: left,
+                hi: right,
+                flo: f_left,
+                fhi: f_right,
                 iterations,
                 converged: true,
             });
@@ -99,11 +99,11 @@ where
                 if (s_iqi - left) * (s_iqi - right) < 0.0 {
                     let fs = f(s_iqi);
                     if fs == 0.0 {
-                        return Ok(RootBracket {
-                            a: s_iqi,
-                            b: s_iqi,
-                            fa: 0.0,
-                            fb: 0.0,
+                        return Ok(BisectBracket {
+                            lo: s_iqi,
+                            hi: s_iqi,
+                            flo: 0.0,
+                            fhi: 0.0,
                             iterations,
                             converged: true,
                         });
@@ -127,11 +127,11 @@ where
         if (s_sec - left) * (s_sec - right) < 0.0 {
             let fs = f(s_sec);
             if fs == 0.0 {
-                return Ok(RootBracket {
-                    a: s_sec,
-                    b: s_sec,
-                    fa: 0.0,
-                    fb: 0.0,
+                return Ok(BisectBracket {
+                    lo: s_sec,
+                    hi: s_sec,
+                    flo: 0.0,
+                    fhi: 0.0,
                     iterations,
                     converged: true,
                 });
@@ -148,11 +148,11 @@ where
             let s_bi = 0.5 * (left + right);
             let fs = f(s_bi);
             if fs == 0.0 {
-                return Ok(RootBracket {
-                    a: s_bi,
-                    b: s_bi,
-                    fa: 0.0,
-                    fb: 0.0,
+                return Ok(BisectBracket {
+                    lo: s_bi,
+                    hi: s_bi,
+                    flo: 0.0,
+                    fhi: 0.0,
                     iterations,
                     converged: true,
                 });
@@ -168,11 +168,11 @@ where
     }
 
     // 达到最大迭代次数，仍返回当前区间
-    Ok(RootBracket {
-        a: left,
-        b: right,
-        fa: f_left,
-        fb: f_right,
+    Ok(BisectBracket {
+        lo: left,
+        hi: right,
+        flo: f_left,
+        fhi: f_right,
         iterations,
         converged: false,
     })
@@ -224,8 +224,8 @@ mod tests {
         let f = |x: f64| x.cos() - x;
         let result = solve_bracket(0.0, 1.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(1.0));
-        assert!(result.fa * result.fb <= 0.0); // 异号
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(1.0));
+        assert!(result.flo * result.fhi <= 0.0); // 异号
     }
 
     #[test]
@@ -233,8 +233,8 @@ mod tests {
         let f = |x: f64| x.powi(3) - x - 2.0;
         let result = solve_bracket(1.0, 2.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(1.0));
-        assert!(result.fa * result.fb <= 0.0);
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(1.0));
+        assert!(result.flo * result.fhi <= 0.0);
     }
 
     #[test]
@@ -243,8 +243,8 @@ mod tests {
         let f = |x: f64| (1.0 / x).sin();
         let result = solve_bracket(0.1, 1.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(0.9));
-        assert!(result.fa * result.fb <= 0.0);
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(0.9));
+        assert!(result.flo * result.fhi <= 0.0);
     }
 
     #[test]
@@ -253,8 +253,8 @@ mod tests {
         let f = |x: f64| (x - 1.0).powi(2) * x.log10();
         let result = solve_bracket(0.5, 2.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(1.5));
-        assert!(result.fa * result.fb <= 0.0);
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(1.5));
+        assert!(result.flo * result.fhi <= 0.0);
     }
 
     #[test]
@@ -262,8 +262,8 @@ mod tests {
         let f = |x: f64| x; // f(0) = 0
         let result = solve_bracket(0.0, 1.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!(result.a == 0.0 && result.b == 0.0);
-        assert!(result.fa == 0.0 && result.fb == 0.0);
+        assert!(result.lo == 0.0 && result.hi == 0.0);
+        assert!(result.flo == 0.0 && result.fhi == 0.0);
     }
 
     #[test]
@@ -271,8 +271,8 @@ mod tests {
         let f = |x: f64| x - 2.0; // f(2) = 0
         let result = solve_bracket(1.0, 2.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!(result.a == 2.0 && result.b == 2.0);
-        assert!(result.fa == 0.0 && result.fb == 0.0);
+        assert!(result.lo == 2.0 && result.hi == 2.0);
+        assert!(result.flo == 0.0 && result.fhi == 0.0);
     }
 
     #[test]
@@ -280,8 +280,8 @@ mod tests {
         let f = |x: f64| x.cos() - x;
         let result = solve_bracket(0.7390851332, 0.7390851333, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(1.0));
-        assert!(result.fa * result.fb <= 0.0);
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(1.0));
+        assert!(result.flo * result.fhi <= 0.0);
     }
 
     #[test]
@@ -300,12 +300,12 @@ mod tests {
         let result = solve_bracket(0.5, 3.1, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
         assert!(
-            (result.b - result.a) < 2.0 * TOL.to_f64(result.b.abs().max(result.a.abs())),
+            (result.hi - result.lo) < 2.0 * TOL.to_f64(result.hi.abs().max(result.lo.abs())),
             "({}, {})",
-            result.a,
-            result.b
+            result.lo,
+            result.hi
         );
-        assert!(result.fa * result.fb <= 0.0);
+        assert!(result.flo * result.fhi <= 0.0);
     }
 
     #[test]
@@ -313,8 +313,8 @@ mod tests {
         let f = |x: f64| if x < 0.0 { -1.0 } else { 1.0 }; // sign(x)
         let result = solve_bracket(-1.0, 1.0, &f, TOL, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * TOL.to_f64(1.0));
-        assert!(result.fa * result.fb <= 0.0); // TOMS748 可以处理跳跃间断点
+        assert!((result.hi - result.lo) < 2.0 * TOL.to_f64(1.0));
+        assert!(result.flo * result.fhi <= 0.0); // TOMS748 可以处理跳跃间断点
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
         let tol = Tolerance::new(1e-15, 1e-15);
         let result = solve_bracket(0.0, 1.0, &f, tol, MAX_ITER).unwrap();
         assert!(result.converged);
-        assert!((result.b - result.a) < 2.0 * tol.to_f64(1.0));
+        assert!((result.hi - result.lo) < 2.0 * tol.to_f64(1.0));
     }
 
     #[test]
@@ -332,6 +332,6 @@ mod tests {
         let result = solve_bracket(0.0, 1.0, &f, TOL, 3).unwrap(); // 迭代次数限制
         assert!(!result.converged); // 不应收敛
         assert!(result.iterations == 3);
-        assert!(result.fa * result.fb <= 0.0); // 但仍包含根
+        assert!(result.flo * result.fhi <= 0.0); // 但仍包含根
     }
 }

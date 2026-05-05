@@ -9,7 +9,7 @@ use crate::{
         ExpansionSection, InitialSection, NozzleConfig, Section,
     },
 };
-use math::{rootfinding::bisection, rootfinding::toms748, Tolerance};
+use math::{rootfinding::toms748, Tolerance};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -88,7 +88,14 @@ fn run_transition_to_target_length(
         return None;
     }
 
-    let ib = match bisection::solve_bracket_int(lo, hi, &|i| trial(i as usize), 50) {
+    let ib = match math::rootfinding::solve_bracket(
+        lo,
+        hi,
+        &|i| trial(i as usize),
+        |a, b| (a + b) / 2,
+        |a, b| b - a <= 1,
+        50,
+    ) {
         Ok(b) => b,
         Err(_) => return None,
     };
@@ -203,10 +210,10 @@ fn run_transition_to_target_length(
     {
         Ok(bracket) => {
             // 检查是否收敛到边界
-            if bracket.a.abs() < eps || (bracket.b - l_max).abs() < eps {
+            if bracket.lo.abs() < eps || (bracket.hi - l_max).abs() < eps {
                 // 根靠近区间端点，可能不在区间内
             }
-            0.5 * (bracket.a + bracket.b)
+            0.5 * (bracket.lo + bracket.hi)
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
@@ -621,13 +628,13 @@ impl ConstraintNozzle {
 
         match toms748::solve_bracket(xa, xb, &f, Tolerance::new(theta_tol, theta_tol), max_iter) {
             Ok(bracket) => {
-                let theta_opt = 0.5 * (bracket.a + bracket.b);
+                let theta_opt = 0.5 * (bracket.lo + bracket.hi);
 
                 eprintln!(
                     "    TOMS748 converged in {} iterations, bracket = [{:.6}°, {:.6}°]",
                     bracket.iterations,
-                    bracket.a.to_degrees(),
-                    bracket.b.to_degrees()
+                    bracket.lo.to_degrees(),
+                    bracket.hi.to_degrees()
                 );
 
                 // 检查是否收敛到边界（可能未真正找到根）
