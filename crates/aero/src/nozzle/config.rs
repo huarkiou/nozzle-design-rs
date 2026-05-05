@@ -1,6 +1,6 @@
 use crate::moc::{
-    AreaType,
     unitprocess::{Irrotational, Rotational, UnitProcess, UnitprocessConfig},
+    AreaType,
 };
 use math::Tolerance;
 use serde::{Deserialize, Serialize};
@@ -325,5 +325,117 @@ mod tests {
 
         println!("{:}", output_dir.to_str().unwrap_or_default());
         let _ = config.to_toml_file(output_dir).unwrap();
+    }
+
+    // ── 验证失败路径 ──────────────────────────────────────────
+
+    fn make_valid() -> NozzleConfig {
+        NozzleConfig {
+            control: Control::default(),
+            material: Material::air_piecewise_polynomial(),
+            inlet: Inlet::default(),
+            geometry: Geometry::default(),
+            throat: Throat::default(),
+            outlet: Outlet::default(),
+            io: IO::default(),
+        }
+    }
+
+    #[test]
+    fn test_validate_eps_too_large() {
+        let mut c = make_valid();
+        c.control.eps = 1e-2;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_eps_too_small() {
+        let mut c = make_valid();
+        c.control.eps = 1e-15;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_n_correction_too_small() {
+        let mut c = make_valid();
+        c.control.n_correction_max = 0;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_n_inlet_too_small() {
+        let mut c = make_valid();
+        c.control.n_inlet = 1;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_height_i_nonpositive() {
+        let mut c = make_valid();
+        c.geometry.height_i = 0.0;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_height_e_too_small() {
+        let mut c = make_valid();
+        c.geometry.height_e = 0.5; // smaller than height_i=1.0
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_length_nonpositive() {
+        let mut c = make_valid();
+        c.geometry.length = 0.0;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_p_total_nonpositive() {
+        let mut c = make_valid();
+        c.inlet.p_total = 0.0;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_t_total_nonpositive() {
+        let mut c = make_valid();
+        c.inlet.temperature_total = 0.0;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_ma_subsonic() {
+        let mut c = make_valid();
+        c.inlet.ma = 0.8;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_theta_nonzero() {
+        let mut c = make_valid();
+        c.inlet.theta = 0.1;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_radius_negative() {
+        let mut c = make_valid();
+        c.throat.radius_throat = -0.1;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_theta_a_out_of_range() {
+        let mut c = make_valid();
+        c.throat.theta_a = std::f64::consts::PI; // >= PI
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_p_ambient_nonpositive() {
+        let mut c = make_valid();
+        c.outlet.p_ambient = 0.0;
+        assert!(c.validate().is_err());
     }
 }

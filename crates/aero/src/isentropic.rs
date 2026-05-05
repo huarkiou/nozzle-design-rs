@@ -1,4 +1,4 @@
-use math::{Tolerance, rootfinding::toms748};
+use math::{rootfinding::toms748, Tolerance};
 
 use crate::Cp;
 
@@ -36,5 +36,86 @@ pub fn cal_static_temperature(cp: &Cp, t_total: f64, velocity: f64) -> f64 {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── constant cp ──────────────────────────────────────────
+
+    #[test]
+    fn test_total_temp_constant() {
+        let cp = Cp::Constant(1005.0);
+        let t = cal_total_temperature(&cp, 300.0, 500.0);
+        let expected = 300.0 + 500.0_f64.powi(2) / (2.0 * 1005.0);
+        assert!((t - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_static_temp_constant() {
+        let cp = Cp::Constant(1005.0);
+        let t = cal_static_temperature(&cp, 2000.0, 1500.0);
+        let expected = 2000.0 - 1500.0_f64.powi(2) / (2.0 * 1005.0);
+        assert!((t - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_total_static_roundtrip_constant() {
+        let cp = Cp::Constant(1005.0);
+        let t_static = 500.0;
+        let v = 1200.0;
+        let t_total = cal_total_temperature(&cp, t_static, v);
+        let t_back = cal_static_temperature(&cp, t_total, v);
+        assert!((t_static - t_back).abs() < 1e-6);
+    }
+
+    // ── variable cp ──────────────────────────────────────────
+
+    #[test]
+    fn test_total_temp_variable() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        let t = cal_total_temperature(&cp, 300.0, 500.0);
+        assert!(t > 300.0);
+        assert!(t.is_finite());
+    }
+
+    #[test]
+    fn test_static_temp_variable() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        let t = cal_static_temperature(&cp, 2000.0, 1500.0);
+        assert!(t > 0.0);
+        assert!(t < 2000.0);
+        assert!(t.is_finite());
+    }
+
+    #[test]
+    fn test_total_static_roundtrip_variable() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.1 * t);
+        let t_static = 500.0;
+        let v = 1200.0;
+        let t_total = cal_total_temperature(&cp, t_static, v);
+        let t_back = cal_static_temperature(&cp, t_total, v);
+        // 变比热下 cp 依赖于温度，零阶近似有残余误差
+        let err = (t_static - t_back).abs();
+        assert!(err < 50.0, "roundtrip error too large: {err}");
+    }
+
+    #[test]
+    fn test_static_temp_zero_velocity() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        let t = cal_static_temperature(&cp, 1500.0, 0.0);
+        // 无速度时静温等于总温
+        assert!((t - 1500.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_static_temp_fallback_path() {
+        // 使用极大速度 + 极小 cp → V²/(2cp) 远超 t_total → bracket 失败 → fallback
+        let cp = Cp::new(|t: f64| 100.0 + 0.01 * t); // 很小的 cp
+        let t = cal_static_temperature(&cp, 500.0, 3000.0);
+        // fallback 近似可能产生不合理值，但不应 panic
+        assert!(t.is_finite());
     }
 }

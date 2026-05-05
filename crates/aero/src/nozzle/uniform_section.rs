@@ -1,7 +1,7 @@
 use crate::{
     moc::{
-        CharLine, CharLines, MocPoint,
         unitprocess::{Context, UnitProcess},
+        CharLine, CharLines, MocPoint,
     },
     nozzle::{NozzleConfig, Section},
 };

@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{CharLine, CharLines, MocPoint, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
     nozzle::{
-        ExpansionSection, InitialSection, NozzleConfig, Section,
         initial_line::InitialLine,
-        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
         uniform_section::UniformSection,
+        ExpansionSection, InitialSection, NozzleConfig, Section,
     },
 };
-use math::{Tolerance, rootfinding::toms748};
+use math::{rootfinding::toms748, Tolerance};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -217,7 +217,11 @@ fn run_transition_to_target_length(
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
-            if f0.abs() < f_max.abs() { 0.0 } else { l_max }
+            if f0.abs() < f_max.abs() {
+                0.0
+            } else {
+                l_max
+            }
         }
     };
     let mut point_tmp = MocPoint {
@@ -825,133 +829,34 @@ fn merge_exit_boundaries(exit_boundary: &[CharLine], length: f64) -> CharLine {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    use crate::{Material, nozzle::config::*};
-
     use super::*;
+    use crate::nozzle::config::*;
+    use crate::Material;
+
+    /// 快速烟雾测试：构造 + 运行固定参数小规模喷管。
     #[test]
-    fn test_new_and_run() {
-        let config = NozzleConfig {
-            control: Control::default(),
-            material: Material::air_piecewise_polynomial(), // 使用理想空气
-            inlet: Inlet::default(),
-            geometry: Geometry::default(),
-            throat: Throat {
-                radius_throat: 0.0,
-                theta_a: f64::NAN, // 让算法自动选择初始膨胀角
-            },
-            outlet: Outlet::default(),
-            io: IO::default(),
-        };
-        let target_len = config.geometry.length;
-        let mut n = ConstraintNozzle::new_otn(config);
-        n.run();
-        let lines = n.get_assembly_charlines();
-
-        // 写入文件以便可视化检查
-        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        output_dir.push("../../target/tmp/fluid_field.txt");
-        lines.write_to_file(output_dir, false).unwrap();
-
-        // 验证至少产生了特征线数据
-        assert!(!lines.is_empty(), "应产生流场数据");
-
-        // 验证所有点坐标不越界
-        for (li, line) in lines.iter().enumerate() {
-            for (pi, point) in line.iter().enumerate() {
-                assert!(
-                    point.is_valid(),
-                    "存在无效点: line={li} pt={pi}: {:?}",
-                    point
-                );
-                if point.x < 0.0 || point.y < 0.0 {
-                    panic!(
-                        "line={li} pt={pi}: x={}, y={}, u={}, v={}",
-                        point.x, point.y, point.u, point.v
-                    );
-                }
-            }
-        }
-
-        // 验证出口 x 不超出目标长度，且至少到达目标附近
-        let mut max_x: f64 = 0.0;
-        for line in lines.iter() {
-            for point in line.iter() {
-                max_x = max_x.max(point.x);
-                assert!(
-                    point.x < target_len + 1.0,
-                    "x={} 超出长度 {target_len}",
-                    point.x
-                );
-            }
-        }
-        assert!(
-            max_x >= target_len - 1e-4,
-            "出口未到达目标长度: max_x={:.6}, target={:.6}",
-            max_x,
-            target_len
-        );
-    }
-
-    /// 使用非零膨胀角、非零喉部半径测试完整喷管（含膨胀段）
-    #[test]
-    fn test_with_expansion() {
+    fn test_smoke() {
         let config = NozzleConfig {
             control: Control::default(),
             material: Material::from_rgas_gamma(287.042, 1.4),
             inlet: Inlet::default(),
             geometry: Geometry::default(),
             throat: Throat {
-                radius_throat: 0.0,             // 喉部过渡圆弧半径
-                theta_a: 19.0_f64.to_radians(), // 初始膨胀角 19°（接近 C++ 自动优化值）
+                radius_throat: 0.0,
+                theta_a: 19.0_f64.to_radians(),
             },
             outlet: Outlet::default(),
             io: IO::default(),
         };
-        let target_len = config.geometry.length;
         let mut n = ConstraintNozzle::new_otn(config);
         n.run();
         let lines = n.get_assembly_charlines();
-
-        // 验证至少产生了特征线数据
-        assert!(!lines.is_empty(), "应产生流场数据");
-
-        // 验证所有点坐标不越界
-        for (li, line) in lines.iter().enumerate() {
-            for (pi, point) in line.iter().enumerate() {
-                assert!(
-                    point.is_valid(),
-                    "存在无效点: line={li} pt={pi}: {:?}",
-                    point
-                );
-                if point.x < 0.0 || point.y < 0.0 {
-                    panic!(
-                        "line={li} pt={pi}: x={}, y={}, u={}, v={}",
-                        point.x, point.y, point.u, point.v
-                    );
-                }
-            }
-        }
-
-        // 验证出口 x 不超出目标长度
-        for line in lines.iter() {
-            for point in line.iter() {
-                assert!(
-                    point.x < target_len + 1.0,
-                    "x={} 超出长度 {target_len}",
-                    point.x
-                );
-            }
-        }
-
-        // 写入文件以便可视化检查
-        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        output_dir.push("../../target/tmp/fluid_field_expansion.txt");
-        lines.write_to_file(output_dir, false).unwrap();
+        assert!(!lines.is_empty());
+        assert!(lines.iter().all(|l| l.iter().all(|p| p.is_valid())));
     }
 
-    /// 诊断测试：非零喉部半径下膨胀段-转向段壁面连续性检查
+    /// 诊断测试：非零喉部半径下膨胀段-转向段壁面连续性检查。
+    /// 需要访问 `sections` 私有字段，不能移至集成测试。
     #[test]
     fn test_wall_continuity_with_arc() {
         let config = NozzleConfig {
@@ -960,8 +865,8 @@ mod tests {
             inlet: Inlet::default(),
             geometry: Geometry::default(),
             throat: Throat {
-                radius_throat: 0.5,             // 非零喉部过渡圆弧半径
-                theta_a: 25.0_f64.to_radians(), // 25° 初始膨胀角
+                radius_throat: 0.5,
+                theta_a: 25.0_f64.to_radians(),
             },
             outlet: Outlet::default(),
             io: IO::default(),
@@ -973,115 +878,16 @@ mod tests {
         let exp_lines = n.sections[2].get_charlines();
         let trans_lines = n.sections[3].get_charlines();
 
-        println!("\n=== 膨胀段-转向段壁面连续性诊断 ===");
-        println!("膨胀段特征线条数: {}", exp_lines.len());
-        println!("转向段特征线条数: {}", trans_lines.len());
-
-        // 膨胀段最后一个壁面点
-        if let Some(exp_last) = exp_lines.last() {
-            let exp_wall = &exp_last[0];
-            println!(
-                "\n膨胀段最后壁面点: x={:.6}, y={:.6}, θ={:.4}°",
-                exp_wall.x,
-                exp_wall.y,
-                exp_wall.flow_direction().to_degrees()
-            );
-        }
-
-        // 转向段第一个壁面点
-        if let Some(trans_first) = trans_lines.first() {
-            if !trans_first.is_empty() {
-                let trans_wall = &trans_first[0];
-                println!(
-                    "转向段第一个壁面点: x={:.6}, y={:.6}, θ={:.4}°",
-                    trans_wall.x,
-                    trans_wall.y,
-                    trans_wall.flow_direction().to_degrees()
-                );
-            } else {
-                println!("转向段第一条特征线为空！");
-            }
-        }
-
-        // 计算两段壁面点之间的距离
+        // 壁面间距检查
         if let (Some(exp_last), Some(trans_first)) = (exp_lines.last(), trans_lines.first()) {
             if !exp_last.is_empty() && !trans_first.is_empty() {
-                let exp_wall = &exp_last[0];
-                let trans_wall = &trans_first[0];
-                let gap = exp_wall.distance_to(trans_wall);
-                let dx = trans_wall.x - exp_wall.x;
-                let dy = trans_wall.y - exp_wall.y;
-                println!("\n壁面点间距: {:.6e} m", gap);
-                println!("  Δx = {:.6e} m", dx);
-                println!("  Δy = {:.6e} m", dy);
-
-                // 打印膨胀段最后5个壁面点
-                println!("\n膨胀段最后5个壁面点:");
-                let start = exp_lines.len().saturating_sub(5);
-                for i in start..exp_lines.len() {
-                    let p = &exp_lines[i][0];
-                    println!(
-                        "  [{:>3}] x={:>10.6}, y={:>10.6}, θ={:>6.2}°",
-                        i,
-                        p.x,
-                        p.y,
-                        p.flow_direction().to_degrees()
-                    );
-                }
-
-                // 打印转向段前5个壁面点
-                println!("\n转向段前5个壁面点:");
-                let end = (trans_lines.len()).min(5);
-                for i in 0..end {
-                    let p = &trans_lines[i][0];
-                    println!(
-                        "  [{:>3}] x={:>10.6}, y={:>10.6}, θ={:>6.2}°",
-                        i,
-                        p.x,
-                        p.y,
-                        p.flow_direction().to_degrees()
-                    );
-                }
-
-                if gap > 0.01 {
-                    println!("\n⚠️  壁面点间距过大 ({:.4} m)，可能存在不连续！", gap);
-                } else if gap > 1e-6 {
-                    println!("\n⚠️  壁面有微小间隙 ({:.6e} m)，可能是求解器衔接问题", gap);
-                } else {
-                    println!("\n✅ 壁面连续，间距在容差范围内");
-                }
-
-                // 检查膨胀段壁面点是否都在圆弧上
-                println!("\n膨胀段壁面点与理论圆弧的偏差:");
-                let x0 = exp_lines[0][0].x;
-                let y0 = exp_lines[0][0].y;
-                let r_t = 0.5;
-                for i in 0..exp_lines.len() {
-                    let p = &exp_lines[i][0];
-                    // 理论圆弧: x = x0 + r_t*sin(θ), y = y0 + r_t*(1-cos(θ))
-                    // 反推 theta = asin((x - x0) / r_t)
-                    let sin_theta = ((p.x - x0) / r_t).clamp(-1.0, 1.0);
-                    let theta_arc = sin_theta.asin();
-                    let x_theory = x0 + r_t * theta_arc.sin();
-                    let y_theory = y0 + r_t * (1.0 - theta_arc.cos());
-                    let err = ((p.x - x_theory).powi(2) + (p.y - y_theory).powi(2)).sqrt();
-                    if err > 1e-6 {
-                        println!(
-                            "  [{:>3}] 偏差={:.3e} m  (实际 x={:.6} y={:.6}  理论 x={:.6} y={:.6})",
-                            i, err, p.x, p.y, x_theory, y_theory
-                        );
-                    }
-                }
+                let gap = exp_last[0].distance_to(&trans_first[0]);
+                assert!(gap < 0.1, "膨胀段与转向段壁面间距过大: {:.4} m", gap);
             }
         }
 
-        // 写入输出文件
         let lines = n.get_assembly_charlines();
-        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        output_dir.push("../../target/tmp/fluid_field_continuity_check.txt");
-        lines.write_to_file(output_dir, false).unwrap();
-
-        // 验证所有点有效
+        assert!(!lines.is_empty());
         let mut max_x: f64 = 0.0;
         for (li, line) in lines.iter().enumerate() {
             for (pi, point) in line.iter().enumerate() {

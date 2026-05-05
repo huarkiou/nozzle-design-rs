@@ -72,3 +72,117 @@ impl<'de> Deserialize<'de> for Cp {
         Ok(Cp::Constant(value))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constant_eval() {
+        let cp = Cp::Constant(1005.0);
+        assert_eq!(cp.eval(300.0), 1005.0);
+        assert_eq!(cp.eval(0.0), 1005.0);
+        assert_eq!(cp.eval(5000.0), 1005.0);
+    }
+
+    #[test]
+    fn test_variable_eval() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        assert!((cp.eval(300.0) - 1060.0).abs() < 1e-10);
+        assert!((cp.eval(1000.0) - 1200.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_new_creates_variable() {
+        let cp = Cp::new(|t: f64| t * 2.0);
+        match cp {
+            Cp::Variable(_) => {} // ok
+            Cp::Constant(_) => panic!("expected Variable"),
+        }
+    }
+
+    #[test]
+    fn test_from_f64() {
+        let cp: Cp = 1005.0_f64.into();
+        match cp {
+            Cp::Constant(v) => assert_eq!(v, 1005.0),
+            Cp::Variable(_) => panic!("expected Constant"),
+        }
+    }
+
+    #[test]
+    fn test_partial_eq_constant() {
+        assert_eq!(Cp::Constant(1005.0), Cp::Constant(1005.0));
+        assert_ne!(Cp::Constant(1005.0), Cp::Constant(1006.0));
+    }
+
+    #[test]
+    fn test_partial_eq_variable_ptr() {
+        let f = |t: f64| t;
+        let a = Cp::new(f);
+        // Same closure → different Arc pointers → not equal
+        let b = Cp::new(|t: f64| t);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn test_partial_eq_mixed() {
+        assert_ne!(Cp::Constant(1005.0), Cp::new(|t: f64| t));
+    }
+
+    #[test]
+    fn test_debug_constant() {
+        let cp = Cp::Constant(1005.0);
+        let s = format!("{:?}", cp);
+        assert!(s.contains("Constant"));
+        assert!(s.contains("1005"));
+    }
+
+    #[test]
+    fn test_debug_variable() {
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        let s = format!("{:?}", cp);
+        assert!(s.contains("Variable"));
+    }
+
+    #[test]
+    fn test_serialize_constant() {
+        let cp = Cp::Constant(1005.0);
+        let json = serde_json::to_string(&cp).unwrap();
+        assert_eq!(json, "1005.0");
+    }
+
+    #[test]
+    fn test_serialize_variable() {
+        // Variable serializes as cp(273.15)
+        let cp = Cp::new(|t: f64| 1000.0 + 0.2 * t);
+        let json = serde_json::to_string(&cp).unwrap();
+        let expected = 1000.0 + 0.2 * 273.15;
+        let actual: f64 = json.parse().unwrap();
+        assert!((actual - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_deserialize_always_constant() {
+        let cp: Cp = serde_json::from_str("1005.0").unwrap();
+        match cp {
+            Cp::Constant(v) => assert_eq!(v, 1005.0),
+            Cp::Variable(_) => panic!("deserialization should produce Constant"),
+        }
+    }
+
+    #[test]
+    fn test_clone_constant() {
+        let a = Cp::Constant(1005.0);
+        let b = a.clone();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_clone_variable() {
+        let a = Cp::new(|t: f64| t);
+        let b = a.clone();
+        // Same Arc pointer → equal
+        assert_eq!(a, b);
+    }
+}

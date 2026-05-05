@@ -5,7 +5,7 @@ use std::{
 
 use math::Tolerance;
 
-use crate::{Material, isentropic};
+use crate::{isentropic, Material};
 
 /// 描述超声速流场中的任一点的气流参数
 #[derive(Clone, Debug)]
@@ -142,7 +142,11 @@ impl MocPoint {
     /// 计算马赫数Ma 单位：1
     pub fn mach_number(&self) -> f64 {
         let ma = self.velocity_squared() / self.sound_speed_squared();
-        if ma < 1. { 1. } else { ma.sqrt() }
+        if ma < 1. {
+            1.
+        } else {
+            ma.sqrt()
+        }
     }
 
     /// 同时计算声速和马赫数
@@ -497,5 +501,135 @@ impl MocPoint {
             rho: lerp(p1.rho, p2.rho),
             mat: p1.mat.clone(), // 假设物性相同；否则需额外处理
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_point(x: f64, y: f64, u: f64, v: f64, p: f64, t: f64, rho: f64) -> MocPoint {
+        MocPoint::new(x, y, u, v, p, t, rho, Material::from_rgas_gamma(287.0, 1.4))
+    }
+
+    #[test]
+    fn test_is_valid_normal() {
+        let p = make_point(1.0, 0.5, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        assert!(p.is_valid());
+    }
+
+    #[test]
+    fn test_is_valid_nan_position() {
+        let mut p = make_point(1.0, 0.5, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        p.x = f64::NAN;
+        assert!(!p.is_valid());
+    }
+
+    #[test]
+    fn test_is_valid_negative_pressure() {
+        let mut p = make_point(1.0, 0.5, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        p.p = -1.0;
+        assert!(!p.is_valid());
+    }
+
+    #[test]
+    fn test_default() {
+        let p = MocPoint::default();
+        assert!(p.x.is_nan());
+        assert!(p.rg() > 0.0);
+    }
+
+    #[test]
+    fn test_velocity() {
+        let p = make_point(0.0, 0.0, 3.0, 4.0, 100000.0, 300.0, 1.2);
+        assert!((p.velocity() - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_flow_direction() {
+        let p = make_point(0.0, 0.0, 1.0, 1.0, 100000.0, 300.0, 1.2);
+        assert!((p.flow_direction() - std::f64::consts::FRAC_PI_4).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_mach_number_supersonic() {
+        let p = make_point(0.0, 0.0, 600.0, 100.0, 50000.0, 250.0, 0.7);
+        let ma = p.mach_number();
+        assert!(ma >= 1.0, "expected supersonic, got {ma}");
+    }
+
+    #[test]
+    fn test_convergence_check() {
+        let tol = Tolerance::new(1e-6, 1e-6);
+        let a = make_point(1.0, 0.5, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        let b = make_point(1.0 + 1e-10, 0.5 - 1e-10, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        assert!(a.is_position_converged_with(&b, tol));
+        assert!(a.is_velocity_converged_with(&b, tol));
+    }
+
+    #[test]
+    fn test_convergence_not_converged() {
+        let tol = Tolerance::new(1e-6, 1e-6);
+        let a = make_point(1.0, 0.5, 2000.0, 500.0, 50000.0, 500.0, 0.5);
+        let b = make_point(2.0, 1.5, 1000.0, 200.0, 50000.0, 500.0, 0.5);
+        assert!(!a.is_converged_with(&b, tol));
+    }
+
+    #[test]
+    fn test_arithmetic_add() {
+        let a = make_point(1.0, 2.0, 100.0, 200.0, 1000.0, 300.0, 1.0);
+        let b = make_point(3.0, 4.0, 300.0, 400.0, 2000.0, 500.0, 2.0);
+        let c = &a + &b;
+        assert!((c.x - 4.0).abs() < 1e-10);
+        assert!((c.y - 6.0).abs() < 1e-10);
+        assert!((c.u - 400.0).abs() < 1e-10);
+        assert!((c.v - 600.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_arithmetic_mul_div() {
+        let a = make_point(2.0, 4.0, 6.0, 8.0, 10.0, 300.0, 1.0);
+        let b = &a * 2.0;
+        assert!((b.x - 4.0).abs() < 1e-10);
+        let c = &a / 2.0;
+        assert!((c.x - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_distance_to() {
+        let a = make_point(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let b = make_point(3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assert!((a.distance_to(&b) - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_is_between() {
+        let p1 = make_point(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let p2 = make_point(10.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let mid = make_point(5.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let outside = make_point(15.0, 15.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assert!(mid.is_between(&p1, &p2, 1e-10));
+        assert!(!outside.is_between(&p1, &p2, 1e-10));
+    }
+
+    #[test]
+    fn test_is_collinear() {
+        let p1 = make_point(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let p2 = make_point(10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let mid = make_point(5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let off = make_point(5.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assert!(mid.is_collinear_with(&p1, &p2, 1e-10));
+        assert!(!off.is_collinear_with(&p1, &p2, 1e-10));
+    }
+
+    #[test]
+    fn test_interpolate_along() {
+        let p1 = make_point(0.0, 0.0, 100.0, 50.0, 100000.0, 300.0, 1.0);
+        let p2 = make_point(10.0, 0.0, 200.0, 100.0, 80000.0, 400.0, 0.8);
+        let mid = make_point(5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let result = mid.interpolate_along(&p1, &p2);
+        assert!((result.u - 150.0).abs() < 1e-10);
+        assert!((result.v - 75.0).abs() < 1e-10);
+        assert!((result.x - 5.0).abs() < 1e-10);
     }
 }

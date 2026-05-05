@@ -1,5 +1,5 @@
 use crate::{
-    moc::{CharLine, CharLines, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines},
     nozzle::NozzleConfig,
 };
 

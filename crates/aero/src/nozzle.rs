@@ -7,7 +7,7 @@ mod section;
 mod transition_section;
 mod uniform_section;
 
-pub use config::NozzleConfig;
+pub use config::{Control, Geometry, Inlet, NozzleConfig, Outlet, Throat, IO};
 pub use constraint_nozzle::ConstraintNozzle;
 pub use expansion_section::ExpansionSection;
 pub use initial_section::InitialSection;

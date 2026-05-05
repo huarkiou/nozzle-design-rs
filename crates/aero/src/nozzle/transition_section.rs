@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use crate::{
     moc::{
-        CharLine, CharLines, MocPoint,
         unitprocess::{Context, ExitLineFunc, UnitProcess},
+        CharLine, CharLines, MocPoint,
     },
     nozzle::Section,
 };
