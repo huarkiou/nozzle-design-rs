@@ -68,6 +68,9 @@ impl UniformSection {
     ///
     /// 将膨胀段截短线 `line_cut` 与均一区出口点合并，
     /// 补充 y=0（对称轴）点和 y=ymax（壁面）点，按 y 降序排列。
+    ///
+    /// 最后统一将所有点的 x 强制修正为 `self.length`，
+    /// 确保出口为严格竖直直线（对应 C++ uniform-section.hpp:24-29 注释）。
     pub fn cal_exit_line(&self, _unitprocess: &dyn UnitProcess, line_cut: &CharLine) -> CharLine {
         let mut exit_line = line_cut.clone();
         // 移除 line_cut 末尾的对称轴点（后续重新补充）
@@ -111,6 +114,11 @@ impl UniformSection {
                 p = p.interpolate_along(p1, p2);
                 exit_line.push(p);
             }
+        }
+
+        // 统一强制修正所有点 x = length，确保出口为严格竖直直线
+        for pt in exit_line.iter_mut() {
+            pt.x = self.length;
         }
 
         exit_line
