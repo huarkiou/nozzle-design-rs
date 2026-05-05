@@ -12,11 +12,7 @@ where
         / (ndivide as f64).log2())
     .round() as usize
         + 1;
-    if ret < 1 {
-        1
-    } else {
-        ret
-    }
+    if ret < 1 { 1 } else { ret }
 }
 
 /// 通用二分法查找函数根所在区间。

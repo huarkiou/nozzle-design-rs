@@ -1,7 +1,7 @@
 use crate::moc::unitprocess::UnitprocessConfig;
 use crate::moc::{
-    unitprocess::{Context, ExitLineFunc, UnitProcess},
     AreaType, CharLine, MocPoint,
+    unitprocess::{Context, ExitLineFunc, UnitProcess},
 };
 
 /// 无旋特征线法的基本计算过程
@@ -315,7 +315,7 @@ impl UnitProcess for Irrotational {
         dist: f64,
     ) -> Option<MocPoint> {
         let p2 = &context.prev[context.idx_prev]; // C++ points[0]: prev line's last (axis) point
-                                                  // C++ points[2]: second-to-last point on prev line, used for initial estimate & total params
+        // C++ points[2]: second-to-last point on prev line, used for initial estimate & total params
         let p2_prev = if context.idx_prev > 0 {
             &context.prev[context.idx_prev - 1]
         } else {
@@ -526,8 +526,8 @@ impl UnitProcess for Irrotational {
 mod tests {
     use super::*;
     use crate::{
-        moc::{AreaType, CharLine},
         Material,
+        moc::{AreaType, CharLine},
     };
     use math::Tolerance;
 

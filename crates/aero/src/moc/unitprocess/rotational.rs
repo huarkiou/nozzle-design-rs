@@ -1,6 +1,6 @@
+use crate::moc::AreaType;
 use crate::moc::unitprocess::UnitProcess;
 use crate::moc::unitprocess::UnitprocessConfig;
-use crate::moc::AreaType;
 
 // /// 有旋特征线法的基本计算过程
 pub struct Rotational {

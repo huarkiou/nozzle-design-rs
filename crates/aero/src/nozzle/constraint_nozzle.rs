@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
+    moc::{CharLine, CharLines, MocPoint, unitprocess::UnitProcess},
     nozzle::{
-        initial_line::InitialLine,
-        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
-        uniform_section::UniformSection,
         ExpansionSection, InitialSection, NozzleConfig, Section,
+        initial_line::InitialLine,
+        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        uniform_section::UniformSection,
     },
 };
-use math::{rootfinding::toms748, Tolerance};
+use math::{Tolerance, rootfinding::toms748};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -217,11 +217,7 @@ fn run_transition_to_target_length(
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
-            if f0.abs() < f_max.abs() {
-                0.0
-            } else {
-                l_max
-            }
+            if f0.abs() < f_max.abs() { 0.0 } else { l_max }
         }
     };
     let mut point_tmp = MocPoint {
@@ -735,7 +731,7 @@ impl ConstraintNozzle {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{nozzle::config::*, Material};
+    use crate::{Material, nozzle::config::*};
 
     use super::*;
     #[test]

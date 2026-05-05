@@ -1,6 +1,6 @@
 use crate::{
-    rootfinding::{RootBracket, RootFindingError},
     Tolerance,
+    rootfinding::{RootBracket, RootFindingError},
 };
 
 /// TOMS748 一维方程求根算法，返回包含根的区间信息结构体

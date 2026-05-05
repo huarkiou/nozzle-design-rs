@@ -1,6 +1,6 @@
 use crate::moc::{
-    unitprocess::{Context, UnitProcess},
     CharLine, CharLines, MocPoint,
+    unitprocess::{Context, UnitProcess},
 };
 
 /// MOC 容差（与 Control.eps 默认值一致）
