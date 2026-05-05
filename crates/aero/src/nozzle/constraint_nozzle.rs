@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
+    moc::{CharLine, CharLines, MocPoint, unitprocess::UnitProcess},
     nozzle::{
-        initial_line::InitialLine,
-        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
-        uniform_section::UniformSection,
         ExpansionSection, InitialSection, NozzleConfig, Section,
+        initial_line::InitialLine,
+        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        uniform_section::UniformSection,
     },
 };
-use math::{rootfinding::toms748, Tolerance};
+use math::{Tolerance, rootfinding::toms748};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -217,11 +217,7 @@ fn run_transition_to_target_length(
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
-            if f0.abs() < f_max.abs() {
-                0.0
-            } else {
-                l_max
-            }
+            if f0.abs() < f_max.abs() { 0.0 } else { l_max }
         }
     };
     let mut point_tmp = MocPoint {
@@ -442,10 +438,29 @@ impl ConstraintNozzle {
         let p_ambient = self.config.outlet.p_ambient;
         let height_e_fixed = self.config.geometry.height_e.is_finite();
 
+        // ── 几何约束：膨胀角过大时膨胀线无法到达目标长度 ──
+        let x_wall = initial_last_line.first().map(|p| p.x).unwrap_or(0.0);
+        let y_wall = initial_last_line.first().map(|p| p.y).unwrap_or(0.0);
+        let geo_max_theta = (y_wall / (self.config.geometry.length - x_wall).max(1e-6) * 5.0)
+            .atan()
+            .min(45.0_f64.to_radians());
+
         // ── 辅助函数：给定 theta_a，计算约束差值 ──
         let cal_cond_diff = |theta_a: f64, verbose: bool| -> Option<f64> {
             let r_t = self.config.throat.radius_throat;
             let length = self.config.geometry.length;
+
+            // 几何快速失败：膨胀角过大时跳过完整膨胀段计算
+            if theta_a > geo_max_theta {
+                if verbose {
+                    eprintln!(
+                        "    θ = {:.3}°  →  exceeds geometric bound ({:.3}°), skip",
+                        theta_a.to_degrees(),
+                        geo_max_theta.to_degrees()
+                    );
+                }
+                return None;
+            }
 
             // 1. 创建并运行膨胀段
             let mut exp = ExpansionSection::new(r_t, theta_a, length);
@@ -526,17 +541,30 @@ impl ConstraintNozzle {
             }
         };
 
-        // ── 1. 上界试探：从大到小找能使计算不崩溃的角度 ──
-        eprintln!("    searching upper bound (80° → 10°) ...");
+        // ── 1. 上界试探：从几何上限向下找能使计算不崩溃的角度 ──
+        let upper_max_deg = geo_max_theta.to_degrees();
+        eprintln!(
+            "    searching upper bound ({:.0}° → 10°) ...",
+            upper_max_deg
+        );
         let upper_result = (|| -> Option<(f64, f64)> {
-            for degree in [80.0_f64, 70.0, 60.0, 50.0, 40.0, 30.0, 20.0, 10.0] {
-                let theta = degree.to_radians();
+            let mut deg = upper_max_deg;
+            while deg >= 10.0 {
+                let theta = deg.to_radians();
                 if let Some(diff) = cal_cond_diff(theta, false) {
                     if diff.is_finite() {
-                        // 打印成功的上界以便用户了解范围
                         cal_cond_diff(theta, true);
                         return Some((theta, diff));
                     }
+                }
+                deg -= 10.0;
+            }
+            // fallback: try 10°
+            let theta = 10.0_f64.to_radians();
+            if let Some(diff) = cal_cond_diff(theta, false) {
+                if diff.is_finite() {
+                    cal_cond_diff(theta, true);
+                    return Some((theta, diff));
                 }
             }
             None
@@ -799,7 +827,7 @@ fn merge_exit_boundaries(exit_boundary: &[CharLine], length: f64) -> CharLine {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{nozzle::config::*, Material};
+    use crate::{Material, nozzle::config::*};
 
     use super::*;
     #[test]

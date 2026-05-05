@@ -176,12 +176,20 @@ impl MocPoint {
     }
 
     /// 计算总参数 (总温、总压、总密度)
+    ///
+    /// 只执行一次 `cp.eval(t)`——通过 `gamma` 逆推 `cp = γ·R/(γ-1)`，
+    /// 马赫数直接从 `γ·R·T` 计算声速，避免内部的重复 `gamma(t)`/`cp(t)` 调用。
     pub fn total_temperature_pressure_density(&self) -> (f64, f64, f64) {
-        let ma = self.mach_number();
-        let sub_exp1 = self.gamma(self.t) - 1.;
-        let sub_exp2 = 1. + sub_exp1 / 2. * ma.powi(2);
-        let tt = self.t + self.velocity_squared() / (2. * self.cp(self.t));
-        let tp = self.p * sub_exp2.powf(self.gamma(self.t) / sub_exp1);
+        let gamma = self.mat.gamma(self.t);
+        let rg = self.mat.rgas();
+        let cp_val = gamma * rg / (gamma - 1.0);
+        let c2 = gamma * rg * self.t;
+        let ma2 = self.velocity_squared() / c2;
+        let ma = if ma2 < 1.0 { 1.0 } else { ma2.sqrt() };
+        let sub_exp1 = gamma - 1.;
+        let sub_exp2 = 1. + sub_exp1 / 2. * ma * ma;
+        let tt = self.t + self.velocity_squared() / (2. * cp_val);
+        let tp = self.p * sub_exp2.powf(gamma / sub_exp1);
         let td = self.rho * sub_exp2.powf(1. / sub_exp1);
         (tt, tp, td)
     }
