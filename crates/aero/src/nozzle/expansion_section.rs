@@ -165,6 +165,22 @@ impl ExpansionSection {
             }
         }
 
+        // 确保最后一点满足约定：在对称轴上(y=0) 或 在右边界上(x=max_length)
+        if let Some(last) = line_cur.last() {
+            if last.y > 0.0 && (last.x - max_length).abs() > 1e-9 {
+                // 既不在轴上也不在右边界上 → 强制截断到右边界
+                if line_cur.len() >= 2 {
+                    let p_prev = &line_cur[line_cur.len() - 2];
+                    let ratio = (max_length - p_prev.x) / (last.x - p_prev.x);
+                    let mut p_cut = last.clone();
+                    p_cut.x = max_length;
+                    p_cut.y = p_prev.y + ratio * (p_cut.x - p_prev.x);
+                    p_cut = p_cut.interpolate_along(p_prev, last);
+                    *line_cur.last_mut().unwrap() = p_cut;
+                }
+            }
+        }
+
         line_cur
     }
 }
@@ -257,9 +273,12 @@ impl Section for ExpansionSection {
             }
 
             // dtheta 自适应调整 — 基于轴线侧末两点间距反馈
-            // 当前线与前一线在对称轴附近的间距应大致等比（随 y 扩张缩放），
-            // 加入阻尼避免剧烈波动导致特征线密度突变
-            if need_dtheta && line_cur.len() >= 3 {
+            // 仅在线未截断（最后一点在对称轴上）时执行，
+            // 截断线的末两点不在轴线侧，其间距不能反映特征线密度
+            if need_dtheta
+                && line_cur.len() >= 3
+                && line_cur.last().map(|p| p.y <= 0.0).unwrap_or(false)
+            {
                 let last_point = line_cur.last().unwrap();
                 let l_prev = prev_line
                     .last()
@@ -288,6 +307,29 @@ impl Section for ExpansionSection {
 
             if reached_theta_a {
                 break;
+            }
+        }
+
+        // ── 去重叠：若最后两条线壁面侧间距不足前面平均间距的一半，移除倒数第二条 ──
+        let n = self.char_lines.len();
+        if n >= 3 {
+            let last_spacing = self.char_lines[n - 1][0].distance_to(&self.char_lines[n - 2][0]);
+            // 计算前面若干条线的平均壁面间距
+            let mut sum = 0.0;
+            let mut count = 0;
+            for i in (0..n.saturating_sub(2)).rev() {
+                let d = self.char_lines[i + 1][0].distance_to(&self.char_lines[i][0]);
+                sum += d;
+                count += 1;
+                if count >= 5 {
+                    break;
+                }
+            }
+            if count > 0 {
+                let avg = sum / count as f64;
+                if last_spacing < 0.5 * avg {
+                    self.char_lines.remove(n - 2);
+                }
             }
         }
 
