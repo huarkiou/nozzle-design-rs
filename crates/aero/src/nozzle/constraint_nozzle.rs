@@ -834,7 +834,7 @@ mod tests {
     fn test_new_and_run() {
         let config = NozzleConfig {
             control: Control::default(),
-            material: Material::from_rgas_gamma(287.042, 1.4), // 使用理想空气
+            material: Material::air_piecewise_polynomial(), // 使用理想空气
             inlet: Inlet::default(),
             geometry: Geometry::default(),
             throat: Throat {
