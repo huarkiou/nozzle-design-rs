@@ -233,6 +233,10 @@ impl Section for TransitionSection {
     fn inherit_last_line(&mut self, line: &CharLine) {
         self.set_line_init(line.clone());
     }
+
+    fn line_init_len(&self) -> usize {
+        self.line_init.len()
+    }
 }
 
 /// 计算 Rao 最大推力喷管理论中当前喷管的最佳出口背压 (OTN).

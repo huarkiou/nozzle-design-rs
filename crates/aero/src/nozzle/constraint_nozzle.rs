@@ -243,11 +243,7 @@ impl ConstraintNozzle {
 
         // 转向段起始线使用了膨胀段最后特征线的子集（前 trans_init_size 个点），
         // 均一区 line_init = 剩余的点（靠近对称轴侧）
-        let trans_init_size = self.sections[3]
-            .get_charlines()
-            .first()
-            .map(|l| l.len())
-            .unwrap_or(n_exp);
+        let trans_init_size = self.sections[3].line_init_len();
 
         let uniform_line_init = if trans_init_size >= n_exp {
             // 转向段使用了全部点，均一区仅用对称轴点

@@ -44,4 +44,12 @@ pub trait Section {
     fn get_line_cut(&self) -> CharLine {
         CharLine::new()
     }
+
+    /// 获取起始线长度（仅 TransitionSection 使用）
+    ///
+    /// 返回 `line_init.len()`，用于均一区计算其起始线在膨胀段
+    /// 最后特征线中的分割位置。默认返回 0。
+    fn line_init_len(&self) -> usize {
+        0
+    }
 }
