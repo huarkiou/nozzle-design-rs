@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{unitprocess::UnitProcess, CharLine, CharLines},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
     nozzle::{
         initial_line::InitialLine,
         transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
@@ -23,6 +23,10 @@ pub struct ConstraintNozzle {
 
 /// 给定膨胀段最后一条特征线，运行转向段并二分搜索使出口 x 逼近目标长度。
 ///
+/// 分两阶段搜索（对应 C++ constraint-nozzle.hpp）：
+/// 1. 整数索引二分 — 确定转向段起始线在膨胀段最后特征线中的网格区间
+/// 2. 弧长插值二分 — 在区间内精确找到使出口 x 匹配 target_length 的起始点
+///
 /// 返回构建好的 `TransitionSection`；若无法收敛则返回 `None`。
 fn run_transition_to_target_length(
     exp_last: &CharLine,
@@ -35,7 +39,7 @@ fn run_transition_to_target_length(
         return None;
     }
 
-    let tol = Tolerance::new(1e-4, 1e-4);
+    let eps = config.control.eps;
     let axisym = config.control.axisymmetric;
     let length = config.geometry.length;
     let exit_factory = cal_exit_factory;
@@ -56,12 +60,13 @@ fn run_transition_to_target_length(
             .map_or(f64::NAN, |p| p.x - length)
     };
 
+    // ── 阶段 1：整数索引二分 ──
     // 先试全段
     let f_full = trial(n_exp - 1);
     if f_full.is_nan() {
         return None;
     }
-    if f_full.abs() < tol.abs {
+    if f_full.abs() < eps {
         // 全段即收敛，直接用全段结果
         let cal_exit = exit_factory(axisym);
         let mut ts = TransitionSection::new(cal_exit, length);
@@ -74,7 +79,6 @@ fn run_transition_to_target_length(
         return Some(ts);
     }
 
-    // 二分搜索：找合适的 line_init 子集长度
     let lo = 1_i64;
     let hi = (n_exp - 1) as i64;
     let flo = trial(lo as usize);
@@ -96,7 +100,7 @@ fn run_transition_to_target_length(
         if f_mid.is_nan() {
             return None;
         }
-        if f_mid.abs() < tol.abs {
+        if f_mid.abs() < eps {
             left = mid;
             right = mid;
             break;
@@ -109,17 +113,189 @@ fn run_transition_to_target_length(
         }
     }
 
-    let best_i = if (trial(left as usize).abs()) < (trial(right as usize).abs()) {
-        left as usize
-    } else {
-        right as usize
+    let i_min = left as usize;
+    let i_max = right as usize;
+
+    // ── 阶段 2：弧长插值二分 — 在网格区间内精确找目标点 ──
+    let p_min = &exp_last[i_min];
+    let p_max = &exp_last[i_max];
+    let l_max = p_max.distance_to(p_min);
+    let alpha = ((p_max.y - p_min.y) / (p_max.x - p_min.x)).atan();
+
+    // 辅助函数：在弧长 L_cur 处插值一点，用它作为 line_init 最后一点，运行转向段
+    let cal_transition_l = |l_cur: f64| -> f64 {
+        let mut point_tmp = MocPoint {
+            x: p_min.x + l_cur * alpha.cos(),
+            y: p_min.y + l_cur * alpha.sin(),
+            u: 0.0,
+            v: 0.0,
+            p: 0.0,
+            t: 0.0,
+            rho: 0.0,
+            mat: p_min.mat.clone(),
+        };
+        point_tmp = point_tmp.interpolate_along(p_min, p_max);
+
+        // 当插值点靠近 p_min 时用 i_min 个前导点，否则用 i_min+1 个
+        let n_before = if l_cur / l_max < 0.5 {
+            i_min.saturating_sub(1)
+        } else {
+            i_min
+        };
+        let mut sub_line = CharLine::with_capacity(n_before + 2);
+        for pt in exp_last.iter().take(n_before + 1) {
+            sub_line.push(pt.clone());
+        }
+        sub_line.push(point_tmp);
+
+        let cal_exit = exit_factory(axisym);
+        let mut ts = TransitionSection::new(cal_exit, length);
+        ts.inherit_last_line(&sub_line);
+        ts.run(unitprocess, config);
+        ts.get_charlines()
+            .last()
+            .and_then(|line| line.last())
+            .map_or(f64::NAN, |p| p.x - length)
     };
 
+    // 检查阶段 2 边界是否有解
+    let f0 = cal_transition_l(0.0);
+    let f_max = cal_transition_l(l_max);
+    if f0.is_nan() || f_max.is_nan() {
+        // 插值不可用，回退到阶段 1 的结果
+        return trial_best(
+            exp_last,
+            unitprocess,
+            config,
+            exit_factory,
+            axisym,
+            length,
+            i_min,
+            i_max,
+            &trial,
+        );
+    }
+    if f0.abs() < eps {
+        return trial_best(
+            exp_last,
+            unitprocess,
+            config,
+            exit_factory,
+            axisym,
+            length,
+            i_min,
+            i_min,
+            &trial,
+        );
+    }
+    if f_max.abs() < eps {
+        return trial_best(
+            exp_last,
+            unitprocess,
+            config,
+            exit_factory,
+            axisym,
+            length,
+            i_max,
+            i_max,
+            &trial,
+        );
+    }
+    if f0 * f_max > 0.0 {
+        // 同号，回退到阶段 1 的最佳结果
+        return trial_best(
+            exp_last,
+            unitprocess,
+            config,
+            exit_factory,
+            axisym,
+            length,
+            i_min,
+            i_max,
+            &trial,
+        );
+    }
+
+    // 阶段 2 二分
+    let mut l_left = 0.0;
+    let mut l_right = l_max;
+    let mut fl_left = f0;
+    for _ in 0..50 {
+        let l_mid = 0.5 * (l_left + l_right);
+        if (l_right - l_left) < eps {
+            break;
+        }
+        let f_mid = cal_transition_l(l_mid);
+        if f_mid.is_nan() {
+            break;
+        }
+        if f_mid.abs() < eps {
+            l_left = l_mid;
+            l_right = l_mid;
+            break;
+        }
+        if fl_left * f_mid < 0.0 {
+            l_right = l_mid;
+        } else {
+            l_left = l_mid;
+            fl_left = f_mid;
+        }
+    }
+
+    // 最终 run：用中点弧长
+    let l_best = 0.5 * (l_left + l_right);
+    let mut point_tmp = MocPoint {
+        x: p_min.x + l_best * alpha.cos(),
+        y: p_min.y + l_best * alpha.sin(),
+        u: 0.0,
+        v: 0.0,
+        p: 0.0,
+        t: 0.0,
+        rho: 0.0,
+        mat: p_min.mat.clone(),
+    };
+    point_tmp = point_tmp.interpolate_along(p_min, p_max);
+
+    let n_before = if l_best / l_max < 0.5 {
+        i_min.saturating_sub(1)
+    } else {
+        i_min
+    };
+    let mut sub_line = CharLine::with_capacity(n_before + 2);
+    for pt in exp_last.iter().take(n_before + 1) {
+        sub_line.push(pt.clone());
+    }
+    sub_line.push(point_tmp);
+
+    let cal_exit = exit_factory(axisym);
+    let mut ts = TransitionSection::new(cal_exit, length);
+    ts.inherit_last_line(&sub_line);
+    ts.run(unitprocess, config);
+    Some(ts)
+}
+
+/// 回退函数：当阶段 2 插值不可用时，使用阶段 1 的最佳索引结果
+fn trial_best(
+    exp_last: &CharLine,
+    unitprocess: &dyn UnitProcess,
+    config: &NozzleConfig,
+    cal_exit_factory: fn(bool) -> crate::moc::unitprocess::ExitLineFunc,
+    axisym: bool,
+    length: f64,
+    i_min: usize,
+    i_max: usize,
+    trial: &dyn Fn(usize) -> f64,
+) -> Option<TransitionSection> {
+    let best_i = if (trial(i_min).abs()) < (trial(i_max).abs()) {
+        i_min
+    } else {
+        i_max
+    };
     let mut sub_line = CharLine::with_capacity(best_i + 1);
     for pt in exp_last.iter().take(best_i + 1) {
         sub_line.push(pt.clone());
     }
-    let cal_exit = exit_factory(axisym);
+    let cal_exit = cal_exit_factory(axisym);
     let mut ts = TransitionSection::new(cal_exit, length);
     ts.inherit_last_line(&sub_line);
     ts.run(unitprocess, config);
