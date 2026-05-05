@@ -102,6 +102,7 @@ def plot_charline_scatter(
             ax.plot(x, y, "-", linewidth=0.3, color=colors[i], alpha=0.7)
         else:
             ax.plot(x, y, "o", markersize=2, color=colors[i], alpha=0.9)
+        ax.scatter(x, y, s=4, color=colors[i], alpha=0.5, edgecolors="none", zorder=3)
 
     # 壁面线: 每条特征线第一点 (跳过 IVL 和 Exit)
     wall_pts = [g[0] for g in groups[1:-1]]
