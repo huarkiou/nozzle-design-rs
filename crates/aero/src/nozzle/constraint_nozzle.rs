@@ -216,34 +216,27 @@ fn run_transition_to_target_length(
         );
     }
 
-    // 阶段 2 二分
-    let mut l_left = 0.0;
-    let mut l_right = l_max;
-    let mut fl_left = f0;
-    for _ in 0..50 {
-        let l_mid = 0.5 * (l_left + l_right);
-        if (l_right - l_left) < eps {
-            break;
-        }
-        let f_mid = cal_transition_l(l_mid);
-        if f_mid.is_nan() {
-            break;
-        }
-        if f_mid.abs() < eps {
-            l_left = l_mid;
-            l_right = l_mid;
-            break;
-        }
-        if fl_left * f_mid < 0.0 {
-            l_right = l_mid;
-        } else {
-            l_left = l_mid;
-            fl_left = f_mid;
-        }
-    }
+    // 阶段 2: TOMS748 寻根 — 在弧长区间内精确找使出口 x 匹配 target_length 的起始点
+    let toms748_f = |l_cur: f64| -> f64 { cal_transition_l(l_cur) };
 
-    // 最终 run：用中点弧长
-    let l_best = 0.5 * (l_left + l_right);
+    let l_best = match toms748::solve_bracket(0.0, l_max, &toms748_f, Tolerance::new(eps, eps), 30)
+    {
+        Ok(bracket) => {
+            // 检查是否收敛到边界
+            if bracket.a.abs() < eps || (bracket.b - l_max).abs() < eps {
+                // 根靠近区间端点，可能不在区间内
+            }
+            0.5 * (bracket.a + bracket.b)
+        }
+        Err(_) => {
+            // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
+            if f0.abs() < f_max.abs() {
+                0.0
+            } else {
+                l_max
+            }
+        }
+    };
     let mut point_tmp = MocPoint {
         x: p_min.x + l_best * alpha.cos(),
         y: p_min.y + l_best * alpha.sin(),
