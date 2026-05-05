@@ -5,6 +5,7 @@ mod rootbracket;
 pub mod secant;
 pub mod toms748;
 
+pub use bisection::{solve_bracket_int, IntBracket};
 pub use error::RootFindingError;
 pub use newton2d::newton_2d;
 pub use rootbracket::RootBracket;

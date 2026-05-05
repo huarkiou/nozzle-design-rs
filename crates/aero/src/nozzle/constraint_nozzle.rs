@@ -9,7 +9,7 @@ use crate::{
         ExpansionSection, InitialSection, NozzleConfig, Section,
     },
 };
-use math::{rootfinding::toms748, Tolerance};
+use math::{rootfinding::bisection, rootfinding::toms748, Tolerance};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -79,6 +79,7 @@ fn run_transition_to_target_length(
         return Some(ts);
     }
 
+    // ── 阶段 1：整数索引二分 — 用通用整数二分法确定网格区间 ──
     let lo = 1_i64;
     let hi = (n_exp - 1) as i64;
     let flo = trial(lo as usize);
@@ -87,34 +88,13 @@ fn run_transition_to_target_length(
         return None;
     }
 
-    let mut left = lo;
-    let mut right = hi;
-    #[allow(unused_assignments)]
-    let mut f_left = flo;
-    for _ in 0..50 {
-        if (right - left) <= 1 {
-            break;
-        }
-        let mid = (left + right) / 2;
-        let f_mid = trial(mid as usize);
-        if f_mid.is_nan() {
-            return None;
-        }
-        if f_mid.abs() < eps {
-            left = mid;
-            right = mid;
-            break;
-        }
-        if f_left * f_mid < 0.0 {
-            right = mid;
-        } else {
-            left = mid;
-            f_left = f_mid;
-        }
-    }
+    let ib = match bisection::solve_bracket_int(lo, hi, &|i| trial(i as usize), 50) {
+        Ok(b) => b,
+        Err(_) => return None,
+    };
 
-    let i_min = left as usize;
-    let i_max = right as usize;
+    let i_min = ib.lo as usize;
+    let i_max = ib.hi as usize;
 
     // ── 阶段 2：弧长插值二分 — 在网格区间内精确找目标点 ──
     let p_min = &exp_last[i_min];

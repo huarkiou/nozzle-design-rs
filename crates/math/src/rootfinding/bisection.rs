@@ -5,6 +5,116 @@ use crate::{
     Tolerance,
 };
 
+// ── 整数域二分搜索 ────────────────────────────────────────────
+
+/// 整数域二分搜索结果
+#[derive(Debug, Clone, Copy)]
+pub struct IntBracket {
+    /// 区间下界
+    pub lo: i64,
+    /// 区间上界
+    pub hi: i64,
+    /// f(lo)
+    pub flo: f64,
+    /// f(hi)
+    pub fhi: f64,
+    /// 迭代次数
+    pub iterations: usize,
+}
+
+impl IntBracket {
+    /// 区间内是否一定存在根 (flo * fhi <= 0)
+    pub fn has_root(&self) -> bool {
+        self.flo * self.fhi <= 0.0
+    }
+
+    /// 取两端点中函数值更接近零的索引
+    pub fn best_index(&self) -> i64 {
+        if self.flo.abs() < self.fhi.abs() {
+            self.lo
+        } else {
+            self.hi
+        }
+    }
+
+    /// 取两端点中函数值更接近零的值
+    pub fn best_value(&self) -> f64 {
+        if self.flo.abs() < self.fhi.abs() {
+            self.flo
+        } else {
+            self.fhi
+        }
+    }
+}
+
+/// 整数域二分法查找函数根所在区间。
+///
+/// 在闭区间 `[lo, hi]` 上搜索使 `f` 变号的最小子区间 `[left, right]`，
+/// 满足 `right - left <= 1`。
+///
+/// # 参数
+/// - `lo`, `hi`: 整数搜索区间，要求 `f(lo) * f(hi) <= 0`
+/// - `f`: 目标函数 `i64 -> f64`
+/// - `max_iter`: 最大迭代次数
+///
+/// # 返回
+/// - `Ok(IntBracket)`: 包含根的相邻整数区间
+/// - `Err(RootFindingError)`: 区间无效、未包围根、或迭代中出现 NaN
+pub fn solve_bracket_int<F>(
+    lo: i64,
+    hi: i64,
+    f: &F,
+    max_iter: usize,
+) -> Result<IntBracket, RootFindingError>
+where
+    F: Fn(i64) -> f64,
+{
+    if lo >= hi {
+        return Err(RootFindingError::InvalidInterval);
+    }
+
+    let mut left = lo;
+    let mut right = hi;
+    let mut f_left = f(left);
+    let mut f_right = f(right);
+
+    if f_left.is_nan() || f_right.is_nan() {
+        return Err(RootFindingError::FunctionNotBracketed);
+    }
+    if f_left * f_right > 0.0 {
+        return Err(RootFindingError::FunctionNotBracketed);
+    }
+
+    let mut iterations = 0;
+    while right - left > 1 && iterations < max_iter {
+        let mid = (left + right) / 2;
+        let f_mid = f(mid);
+
+        if f_mid.is_nan() {
+            return Err(RootFindingError::FunctionNotBracketed);
+        }
+
+        if f_left * f_mid <= 0.0 {
+            right = mid;
+            f_right = f_mid;
+        } else {
+            left = mid;
+            f_left = f_mid;
+        }
+        iterations += 1;
+    }
+
+    Ok(IntBracket {
+        lo: left,
+        hi: right,
+        flo: f_left,
+        fhi: f_right,
+        iterations,
+    })
+}
+
+// ── 连续域二分搜索 ────────────────────────────────────────────
+
 pub fn max_iterations<T>(interval: T, tol: T, ndivide: usize) -> usize
 where
     T: Num + ToPrimitive,
@@ -122,6 +232,57 @@ mod tests {
         rel: 1e-10,
     };
     const MAX_ITER: usize = 100;
+
+    // ── 整数域测试 ──
+
+    #[test]
+    fn test_int_bisection_basic() {
+        // f(i) = i - 5, root at i=5
+        let f = |i: i64| (i - 5) as f64;
+        let r = solve_bracket_int(0, 10, &f, 20).unwrap();
+        assert!(r.has_root());
+        assert!(r.hi - r.lo <= 1);
+        // bracket should contain 5
+        assert!(r.lo <= 5 && 5 <= r.hi);
+    }
+
+    #[test]
+    fn test_int_bisection_negative() {
+        let f = |i: i64| (i + 3) as f64;
+        let r = solve_bracket_int(-10, 0, &f, 20).unwrap();
+        assert!(r.lo <= -3 && -3 <= r.hi);
+    }
+
+    #[test]
+    fn test_int_bisection_large_range() {
+        let f = |i: i64| (i - 500) as f64;
+        let r = solve_bracket_int(0, 1000, &f, 20).unwrap();
+        assert!(r.lo <= 500 && 500 <= r.hi);
+    }
+
+    #[test]
+    fn test_int_bisection_best_index() {
+        let f = |i: i64| (i - 7) as f64;
+        let r = solve_bracket_int(0, 10, &f, 20).unwrap();
+        // f(6) = -1, f(7) = 0 -> best is 7
+        assert_eq!(r.best_index(), 7);
+    }
+
+    #[test]
+    fn test_int_bisection_not_bracketed() {
+        let f = |i: i64| (i * i) as f64; // always >= 0
+        let r = solve_bracket_int(-5, 5, &f, 20);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_int_bisection_invalid_interval() {
+        let f = |i: i64| i as f64;
+        let r = solve_bracket_int(5, 3, &f, 20);
+        assert!(r.is_err());
+    }
+
+    // ── 连续域测试 (原有) ──
 
     #[test]
     fn test_max_iterations_predict() {
