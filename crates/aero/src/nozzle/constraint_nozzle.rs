@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use crate::{
-    moc::{CharLine, CharLines, MocPoint, unitprocess::UnitProcess},
+    moc::{unitprocess::UnitProcess, CharLine, CharLines, MocPoint},
     nozzle::{
-        ExpansionSection, InitialSection, NozzleConfig, Section,
         initial_line::InitialLine,
-        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
+        transition_section::{cal_pb_otn, make_exit_otn, TransitionSection},
         uniform_section::UniformSection,
+        ExpansionSection, InitialSection, NozzleConfig, Section,
     },
 };
-use math::{Tolerance, rootfinding::toms748};
+use math::{rootfinding::toms748, Tolerance};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -217,7 +217,11 @@ fn run_transition_to_target_length(
         }
         Err(_) => {
             // TOMS748 失败，回退到 f0/f_max 中更接近零的端点
-            if f0.abs() < f_max.abs() { 0.0 } else { l_max }
+            if f0.abs() < f_max.abs() {
+                0.0
+            } else {
+                l_max
+            }
         }
     };
     let mut point_tmp = MocPoint {
@@ -422,7 +426,8 @@ impl ConstraintNozzle {
         self.uniform_section.line_init = uniform_line_init;
         self.uniform_section.line_exit = uniform_line_exit;
         self.uniform_section.length = self.config.geometry.length;
-        self.uniform_section.run(self.unitprocess.as_ref());
+        self.uniform_section
+            .run(self.unitprocess.as_ref(), &self.config);
     }
 
     /// 自动迭代寻找满足背压（或出口高度）约束的最优初始膨胀角 `theta_a`。
@@ -690,7 +695,7 @@ impl ConstraintNozzle {
 
         // ── 段 3 + 均一区：逐对合并转向段特征线与均一区扩展线 ──
         let trans_lines = self.sections[3].get_charlines();
-        let uniform_lines = &self.uniform_section.char_lines;
+        let uniform_lines = self.uniform_section.get_charlines();
 
         if uniform_lines.is_empty() {
             // 均一区未产生数据时直接追加转向段结果
@@ -714,11 +719,22 @@ impl ConstraintNozzle {
             }
         }
 
-        // ── 出口边界线 ──
-        let line_cut = self.sections[2].get_line_cut();
-        let exit_line = self
-            .uniform_section
-            .cal_exit_line(self.unitprocess.as_ref(), &line_cut);
+        // ── 出口边界线：收集所有截面段的截短线并合并 ──
+        let mut all_cuts: Vec<CharLine> = Vec::new();
+        // 初值线 + 初值问题 + 膨胀段 + 转向段
+        for i in 0..4 {
+            let cut = self.sections[i].get_line_cut();
+            if !cut.is_empty() {
+                all_cuts.push(cut);
+            }
+        }
+        // 均一区
+        let uniform_cut = self.uniform_section.get_line_cut();
+        if !uniform_cut.is_empty() {
+            all_cuts.push(uniform_cut);
+        }
+
+        let exit_line = cal_exit_line(&all_cuts, self.config.geometry.length);
         if !exit_line.is_empty() {
             lines.push(exit_line);
         }
@@ -727,11 +743,63 @@ impl ConstraintNozzle {
     }
 }
 
+/// 合并所有截面段的截短线为统一的出口边界线。
+///
+/// 收集所有 section 的 `get_line_cut()` 输出，合并去重，
+/// 补充 y=0（对称轴）端点，统一修正所有点 x = length。
+fn cal_exit_line(all_cuts: &[CharLine], length: f64) -> CharLine {
+    let mut exit_line = CharLine::new();
+
+    for cut in all_cuts {
+        for pt in cut.iter() {
+            let mut p = pt.clone();
+            p.x = length;
+            exit_line.push(p);
+        }
+    }
+
+    if exit_line.is_empty() {
+        return exit_line;
+    }
+
+    // 按 y 降序排列（壁面在上，对称轴在下）
+    exit_line.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
+
+    // 剔除 y 坐标过于接近的重复点
+    exit_line.dedup_by(|a, b| (a.y - b.y).abs() < 1e-10);
+
+    // 补充 y = 0 点（对称轴点）
+    if exit_line.last().map(|p| p.y).unwrap_or(0.0) > 0.0 {
+        let n = exit_line.len();
+        if n >= 2 {
+            let p1 = &exit_line[n - 2];
+            let p2 = &exit_line[n - 1];
+            let mut p = p2.clone();
+            p.y = 0.0;
+            p.x = length;
+            p = p.interpolate_along(p1, p2);
+            exit_line.push(p);
+        } else {
+            let mut p = exit_line[0].clone();
+            p.y = 0.0;
+            p.x = length;
+            exit_line.push(p);
+        }
+    }
+
+    // 统一强制修正所有点 x = length，确保出口为严格竖直直线
+    for pt in exit_line.iter_mut() {
+        pt.x = length;
+    }
+
+    exit_line
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{Material, nozzle::config::*};
+    use crate::{nozzle::config::*, Material};
 
     use super::*;
     #[test]

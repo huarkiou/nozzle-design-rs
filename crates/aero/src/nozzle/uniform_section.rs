@@ -1,10 +1,10 @@
-use crate::moc::{
-    unitprocess::{Context, UnitProcess},
-    CharLine, CharLines, MocPoint,
+use crate::{
+    moc::{
+        unitprocess::{Context, UnitProcess},
+        CharLine, CharLines, MocPoint,
+    },
+    nozzle::{NozzleConfig, Section},
 };
-
-/// MOC 容差（与 Control.eps 默认值一致）
-const EPS: f64 = 1e-7;
 
 /// 均一区（Uniform Section）：填补转向段起始线子集与膨胀段完整最后一条特征线之间的"缺口"。
 ///
@@ -43,7 +43,11 @@ impl UniformSection {
     /// 后续 line_prev = 前一步算出的 line_cur。
     ///
     /// 如果 `line_init` 或 `line_exit` 为空，则直接返回不做计算。
-    pub fn run(&mut self, unitprocess: &dyn UnitProcess) {
+    ///
+    /// # 参数
+    /// * `unitprocess` - 单元过程对象
+    /// * `config` - 喷管配置参数（`geometry.length` 作为出口边界约束）
+    pub fn run(&mut self, unitprocess: &dyn UnitProcess, _config: &NozzleConfig) {
         if self.line_init.is_empty() || self.line_exit.is_empty() {
             return;
         }
@@ -59,66 +63,6 @@ impl UniformSection {
                 line_prev = line_cur;
             }
         }
-    }
-
-    /// 计算出口边界特征线。
-    ///
-    /// 将膨胀段截短线 `line_cut` 与均一区出口点合并，
-    /// 补充 y=0（对称轴）点和 y=ymax（壁面）点，按 y 降序排列。
-    ///
-    /// 最后统一将所有点的 x 强制修正为 `self.length`，
-    /// 确保出口为严格竖直直线（对应 C++ uniform-section.hpp:24-29 注释）。
-    pub fn cal_exit_line(&self, _unitprocess: &dyn UnitProcess, line_cut: &CharLine) -> CharLine {
-        let mut exit_line = line_cut.clone();
-        // 移除 line_cut 末尾的对称轴点（后续重新补充）
-        if exit_line.len() > 1 {
-            exit_line.pop();
-        }
-
-        // 添加均一区出口点
-        for line in self.char_lines.iter() {
-            if let Some(p) = line.last() {
-                if (p.x - self.length).abs() < EPS {
-                    let mut pt = p.clone();
-                    pt.x = self.length;
-                    exit_line.push(pt);
-                }
-            }
-        }
-
-        // 按 y 降序排列（壁面在上，对称轴在下）
-        exit_line.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
-
-        // 补充 y = y_max 点（壁面点）
-        if let Some(last_line) = self.char_lines.last() {
-            if let Some(wall_pt) = last_line.first() {
-                if wall_pt.y > exit_line.first().map(|p| p.y).unwrap_or(0.0) {
-                    let mut p = wall_pt.clone();
-                    p.x = self.length;
-                    exit_line.insert(0, p);
-                }
-            }
-        }
-
-        // 补充 y = 0 点（对称轴点）
-        if let Some(last_pt) = exit_line.last() {
-            if last_pt.y > 0.0 {
-                let p1 = &exit_line[exit_line.len() - 2];
-                let p2 = last_pt;
-                let mut p = p2.clone();
-                p.y = 0.0;
-                p.x = self.length;
-                p = p.interpolate_along(p1, p2);
-                exit_line.push(p);
-            }
-        }
-
-        // 统一强制修正所有点 x = length，确保出口为严格竖直直线
-        for pt in exit_line.iter_mut() {
-            pt.x = self.length;
-        }
-
-        exit_line
     }
 
     /// 已知前一条特征线 `line_prev` 和出口点 `p_init`，
@@ -295,6 +239,34 @@ impl UniformSection {
         }
 
         line_cur
+    }
+}
+
+impl Section for UniformSection {
+    fn run(&mut self, unitprocess: &dyn UnitProcess, config: &NozzleConfig) {
+        self.run(unitprocess, config);
+    }
+
+    fn get_charlines(&self) -> &CharLines {
+        &self.char_lines
+    }
+
+    fn inherit_last_line(&mut self, line: &CharLine) {
+        self.line_init = line.clone();
+    }
+
+    /// 均一区因长度限制在出口边界产生的截短线：
+    /// 只收集 x 坐标接近 length 的出口侧点（每条特征线的末点）。
+    fn get_line_cut(&self) -> CharLine {
+        let mut cut = CharLine::new();
+        for line in self.char_lines.iter() {
+            if let Some(pt) = line.last() {
+                if (pt.x - self.length).abs() < 1e-6 {
+                    cut.push(pt.clone());
+                }
+            }
+        }
+        cut
     }
 }
 

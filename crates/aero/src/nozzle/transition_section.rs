@@ -228,6 +228,22 @@ impl Section for TransitionSection {
     fn line_init_len(&self) -> usize {
         self.line_init.len()
     }
+
+    /// 转向段因长度限制在出口边界产生的截短线：
+    /// 当特征线收缩为单点时（最后一条 `len() == 1` 的特征线），该点即为 line_cut。
+    /// 该点位于出口边界 `x ≈ max_length` 处。
+    fn get_line_cut(&self) -> CharLine {
+        let mut cut = CharLine::new();
+        if let Some(last_line) = self.char_lines.last() {
+            if last_line.len() == 1 {
+                let pt = &last_line[0];
+                if (pt.x - self.max_length).abs() < 1e-6 {
+                    cut.push(pt.clone());
+                }
+            }
+        }
+        cut
+    }
 }
 
 /// 计算 Rao 最大推力喷管理论中当前喷管的最佳出口背压 (OTN).
