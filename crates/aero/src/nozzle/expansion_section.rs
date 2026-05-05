@@ -24,7 +24,7 @@ pub struct ExpansionSection {
     /// 最大允许 x 坐标 (m)，超过将被截短
     pub max_length: f64,
     /// 超出最大长度的截短线
-    pub line_cut: CharLine,
+    pub exit_boundary_segment: CharLine,
 }
 
 impl ExpansionSection {
@@ -36,7 +36,7 @@ impl ExpansionSection {
             radius_throat,
             theta_a,
             max_length,
-            line_cut: CharLine::new(),
+            exit_boundary_segment: CharLine::new(),
         }
     }
 
@@ -44,7 +44,7 @@ impl ExpansionSection {
     pub fn set_line_init(&mut self, line_init: CharLine) {
         self.line_init = line_init;
         self.char_lines = CharLines::new();
-        self.line_cut = CharLine::new();
+        self.exit_boundary_segment = CharLine::new();
     }
 
     /// 根据前一条右行特征线，和当前右行特征线壁面点坐标和切向，
@@ -325,17 +325,17 @@ impl Section for ExpansionSection {
             }
         }
 
-        // ── 计算截短线 line_cut ──
-        self.line_cut = CharLine::new();
+        // ── 计算出口边界贡献点 ──
+        self.exit_boundary_segment = CharLine::new();
         for line in self.char_lines.iter().rev() {
             let p = line.last().unwrap();
-            self.line_cut.push(p.clone());
+            self.exit_boundary_segment.push(p.clone());
             if p.y <= 0.0 {
                 break;
             }
         }
-        // 反转使 line_cut 从上壁面到轴线排列
-        self.line_cut.reverse();
+        // 反转使 exit_boundary_segment 从上壁面到轴线排列
+        self.exit_boundary_segment.reverse();
     }
 
     fn get_charlines(&self) -> &CharLines {
@@ -346,7 +346,7 @@ impl Section for ExpansionSection {
         self.set_line_init(line.clone());
     }
 
-    fn get_line_cut(&self) -> CharLine {
-        self.line_cut.clone()
+    fn exit_boundary_segment(&self) -> CharLine {
+        self.exit_boundary_segment.clone()
     }
 }

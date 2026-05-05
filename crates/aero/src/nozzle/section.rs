@@ -54,12 +54,17 @@ pub trait Section {
     /// 默认实现为空操作。
     fn set_theta_a(&mut self, _theta_a: f64) {}
 
-    /// 获取截短线（仅 ExpansionSection 使用）
+    /// 获取该截面段在出口边界（`x = geometry.length`）上的贡献点。
     ///
-    /// 膨胀段中因超出最大允许长度而被截断产生的右边界线，
-    /// 从上壁面排到对称轴。
+    /// 返回该段计算出的、位于或截断于出口边界处的特征线点。
+    /// 不同截面段的出口边界语义：
+    /// - `ExpansionSection`：膨胀线被长度截断后的右端点集合（壁面→对称轴）
+    /// - `TransitionSection`：特征线收敛为单点后的唯一点（最终出口点）
+    /// - `UniformSection`：所有延伸到出口边界处的特征线末点
+    /// - `InitialLine` / `InitialSection`：空（不到达出口边界）
+    ///
     /// 默认实现返回空特征线。
-    fn get_line_cut(&self) -> CharLine {
+    fn exit_boundary_segment(&self) -> CharLine {
         CharLine::new()
     }
 

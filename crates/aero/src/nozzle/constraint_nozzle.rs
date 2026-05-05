@@ -720,21 +720,21 @@ impl ConstraintNozzle {
         }
 
         // ── 出口边界线：收集所有截面段的截短线并合并 ──
-        let mut all_cuts: Vec<CharLine> = Vec::new();
+        let mut exit_boundary: Vec<CharLine> = Vec::new();
         // 初值线 + 初值问题 + 膨胀段 + 转向段
         for i in 0..4 {
-            let cut = self.sections[i].get_line_cut();
-            if !cut.is_empty() {
-                all_cuts.push(cut);
+            let boundary = self.sections[i].exit_boundary_segment();
+            if !boundary.is_empty() {
+                exit_boundary.push(boundary);
             }
         }
         // 均一区
-        let uniform_cut = self.uniform_section.get_line_cut();
-        if !uniform_cut.is_empty() {
-            all_cuts.push(uniform_cut);
+        let uniform_boundary = self.uniform_section.exit_boundary_segment();
+        if !uniform_boundary.is_empty() {
+            exit_boundary.push(uniform_boundary);
         }
 
-        let exit_line = cal_exit_line(&all_cuts, self.config.geometry.length);
+        let exit_line = merge_exit_boundaries(&exit_boundary, self.config.geometry.length);
         if !exit_line.is_empty() {
             lines.push(exit_line);
         }
@@ -743,15 +743,15 @@ impl ConstraintNozzle {
     }
 }
 
-/// 合并所有截面段的截短线为统一的出口边界线。
+/// 合并所有截面段的出口边界贡献点为统一的出口边界线。
 ///
-/// 收集所有 section 的 `get_line_cut()` 输出，合并去重，
+/// 收集所有 section 的 `exit_boundary_segment()` 输出，合并去重，
 /// 补充 y=0（对称轴）端点，统一修正所有点 x = length。
-fn cal_exit_line(all_cuts: &[CharLine], length: f64) -> CharLine {
+fn merge_exit_boundaries(exit_boundary: &[CharLine], length: f64) -> CharLine {
     let mut exit_line = CharLine::new();
 
-    for cut in all_cuts {
-        for pt in cut.iter() {
+    for boundary in exit_boundary {
+        for pt in boundary.iter() {
             let mut p = pt.clone();
             p.x = length;
             exit_line.push(p);

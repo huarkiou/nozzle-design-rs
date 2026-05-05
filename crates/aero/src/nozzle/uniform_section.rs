@@ -12,7 +12,7 @@ use crate::{
 /// - `line_init` = 膨胀段最后一条特征线中未被转向段使用的下游点（靠近对称轴的部分）
 /// - `line_exit` = 转向段每条特征线的最末点（出口点），按从壁面到对称轴排列
 /// - `run()` 从每个出口点出发，沿 line_init 方向逐条计算右行特征线
-/// - `cal_exit_line()` 整合出口边界线
+/// - `exit_boundary_segment()` 输出均一区对出口边界的贡献点
 pub struct UniformSection {
     /// 依次计算得到的右行特征线
     pub char_lines: CharLines,
@@ -257,7 +257,7 @@ impl Section for UniformSection {
 
     /// 均一区因长度限制在出口边界产生的截短线：
     /// 只收集 x 坐标接近 length 的出口侧点（每条特征线的末点）。
-    fn get_line_cut(&self) -> CharLine {
+    fn exit_boundary_segment(&self) -> CharLine {
         let mut cut = CharLine::new();
         for line in self.char_lines.iter() {
             if let Some(pt) = line.last() {

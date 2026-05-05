@@ -229,10 +229,10 @@ impl Section for TransitionSection {
         self.line_init.len()
     }
 
-    /// 转向段因长度限制在出口边界产生的截短线：
-    /// 当特征线收缩为单点时（最后一条 `len() == 1` 的特征线），该点即为 line_cut。
+    /// 转向段在出口边界上的贡献点：
+    /// 当特征线收缩为单点时（最后一条 `len() == 1` 的特征线），该点即为 exit_boundary_segment。
     /// 该点位于出口边界 `x ≈ max_length` 处。
-    fn get_line_cut(&self) -> CharLine {
+    fn exit_boundary_segment(&self) -> CharLine {
         let mut cut = CharLine::new();
         if let Some(last_line) = self.char_lines.last() {
             if last_line.len() == 1 {
