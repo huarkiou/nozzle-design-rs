@@ -170,6 +170,11 @@ impl ExpansionSection {
 }
 
 impl Section for ExpansionSection {
+    fn set_theta_a(&mut self, theta_a: f64) {
+        self.theta_a = theta_a;
+        self.calculated = false;
+    }
+
     fn run(&mut self, unitprocess: &dyn UnitProcess, _config: &super::NozzleConfig) {
         assert!(
             !self.line_init.is_empty(),

@@ -29,4 +29,10 @@ pub trait Section {
     /// 默认实现为空操作。只有需要从前一段接收数据的截面段
     /// （如 `InitialSection` 需要 `InitialLine` 的输出）才需覆盖此方法。
     fn inherit_last_line(&mut self, _line: &CharLine) {}
+
+    /// 设置初始膨胀角（仅 ExpansionSection 使用）
+    ///
+    /// 用于自动迭代选取 theta_a 时重新运行膨胀段。
+    /// 默认实现为空操作。
+    fn set_theta_a(&mut self, _theta_a: f64) {}
 }

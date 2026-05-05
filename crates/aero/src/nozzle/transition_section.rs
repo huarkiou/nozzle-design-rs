@@ -235,6 +235,29 @@ impl Section for TransitionSection {
     }
 }
 
+/// 计算 Rao 最大推力喷管理论中当前喷管的最佳出口背压 (OTN).
+///
+/// # 参数
+/// - `point`: 壁面出口参考点
+///
+/// # 返回值
+/// 最佳出口背压 (Pa)
+///
+/// # 公式
+/// ```text
+/// p_a = p - 0.5 * ρ * V² * sin(2θ) / cot(asin(1/Ma))
+///     = p - 0.5 * ρ * V² * sin(2θ) / √(Ma² - 1)
+/// ```
+pub fn cal_pb_otn(point: &MocPoint) -> f64 {
+    let v_sq = point.velocity_squared();
+    let theta = point.flow_direction();
+    let ma = point.mach_number();
+    let ma_sq = ma * ma;
+    // cot(asin(1/Ma)) = √(Ma² - 1)
+    let cot_mach_angle = (ma_sq - 1.0).sqrt();
+    point.p - 0.5 * point.rho * v_sq * (2.0 * theta).sin() / cot_mach_angle
+}
+
 /// Rao 最大推力喷管出口边界条件 (OTN).
 /// 求解 y 坐标处满足 Riemann 不变量 C1 和质量流量不变量 C2 的 (V, θ).
 pub fn cal_exit_otn(y: f64, p_ref: &MocPoint, axisym: bool) -> (f64, f64) {

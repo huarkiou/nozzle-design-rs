@@ -1,12 +1,14 @@
+use std::f64::consts::PI;
+
 use crate::{
-    moc::{unitprocess::UnitProcess, CharLine, CharLines},
+    moc::{CharLine, CharLines, unitprocess::UnitProcess},
     nozzle::{
-        initial_line::InitialLine,
-        transition_section::{make_exit_otn, TransitionSection},
         ExpansionSection, InitialSection, NozzleConfig, Section,
+        initial_line::InitialLine,
+        transition_section::{TransitionSection, cal_pb_otn, make_exit_otn},
     },
 };
-use math::Tolerance;
+use math::{Tolerance, rootfinding::toms748};
 
 pub struct ConstraintNozzle {
     config: NozzleConfig,
@@ -14,6 +16,111 @@ pub struct ConstraintNozzle {
     sections: Vec<Box<dyn Section>>,
     /// 转向段出口边界条件工厂
     cal_exit_factory: fn(bool) -> crate::moc::unitprocess::ExitLineFunc,
+}
+
+/// 给定膨胀段最后一条特征线，运行转向段并二分搜索使出口 x 逼近目标长度。
+///
+/// 返回构建好的 `TransitionSection`；若无法收敛则返回 `None`。
+fn run_transition_to_target_length(
+    exp_last: &CharLine,
+    unitprocess: &dyn UnitProcess,
+    config: &NozzleConfig,
+    cal_exit_factory: fn(bool) -> crate::moc::unitprocess::ExitLineFunc,
+) -> Option<TransitionSection> {
+    let n_exp = exp_last.len();
+    if n_exp < 2 {
+        return None;
+    }
+
+    let tol = Tolerance::new(1e-4, 1e-4);
+    let axisym = config.control.axisymmetric;
+    let length = config.geometry.length;
+    let exit_factory = cal_exit_factory;
+
+    // 辅助函数：用 expansion 线前 i+1 个点作为 line_init，运行转向段，返回 exit_x - length
+    let trial = |i: usize| -> f64 {
+        let mut sub_line = CharLine::with_capacity(i + 1);
+        for pt in exp_last.iter().take(i + 1) {
+            sub_line.push(pt.clone());
+        }
+        let cal_exit = exit_factory(axisym);
+        let mut ts = TransitionSection::new(cal_exit, length);
+        ts.inherit_last_line(&sub_line);
+        ts.run(unitprocess, config);
+        ts.get_charlines()
+            .last()
+            .and_then(|line| line.last())
+            .map_or(f64::NAN, |p| p.x - length)
+    };
+
+    // 先试全段
+    let f_full = trial(n_exp - 1);
+    if f_full.is_nan() {
+        return None;
+    }
+    if f_full.abs() < tol.abs {
+        // 全段即收敛，直接用全段结果
+        let cal_exit = exit_factory(axisym);
+        let mut ts = TransitionSection::new(cal_exit, length);
+        let mut full_line = CharLine::with_capacity(n_exp);
+        for pt in exp_last.iter() {
+            full_line.push(pt.clone());
+        }
+        ts.inherit_last_line(&full_line);
+        ts.run(unitprocess, config);
+        return Some(ts);
+    }
+
+    // 二分搜索：找合适的 line_init 子集长度
+    let lo = 1_i64;
+    let hi = (n_exp - 1) as i64;
+    let flo = trial(lo as usize);
+
+    if flo.is_nan() || flo * f_full > 0.0 {
+        return None;
+    }
+
+    let mut left = lo;
+    let mut right = hi;
+    #[allow(unused_assignments)]
+    let mut f_left = flo;
+    for _ in 0..50 {
+        if (right - left) <= 1 {
+            break;
+        }
+        let mid = (left + right) / 2;
+        let f_mid = trial(mid as usize);
+        if f_mid.is_nan() {
+            return None;
+        }
+        if f_mid.abs() < tol.abs {
+            left = mid;
+            right = mid;
+            break;
+        }
+        if f_left * f_mid < 0.0 {
+            right = mid;
+        } else {
+            left = mid;
+            f_left = f_mid;
+        }
+    }
+
+    let best_i = if (trial(left as usize).abs()) < (trial(right as usize).abs()) {
+        left as usize
+    } else {
+        right as usize
+    };
+
+    let mut sub_line = CharLine::with_capacity(best_i + 1);
+    for pt in exp_last.iter().take(best_i + 1) {
+        sub_line.push(pt.clone());
+    }
+    let cal_exit = exit_factory(axisym);
+    let mut ts = TransitionSection::new(cal_exit, length);
+    ts.inherit_last_line(&sub_line);
+    ts.run(unitprocess, config);
+    Some(ts)
 }
 
 impl ConstraintNozzle {
@@ -40,9 +147,11 @@ impl ConstraintNozzle {
     ///
     /// 按顺序对每个段执行特征线法计算步骤，
     /// 前一个截面段的最后一条特征线作为下一截面段的初始边界条件传入。
+    ///
+    /// 当 `theta_a` 为 NaN、负值或 >= 90° 时，自动迭代选取满足背压约束的初始膨胀角。
     pub fn run(&mut self) {
-        // 前 3 段流水线
-        for i in 0..3 {
+        // ── 第 0～1 段：初值线 + 初值问题（与 theta_a 无关） ──
+        for i in 0..2 {
             if i > 0 {
                 let last_line = {
                     let prev_lines = self.sections[i - 1].get_charlines();
@@ -55,7 +164,51 @@ impl ConstraintNozzle {
             self.sections[i].run(self.unitprocess.as_ref(), &self.config);
         }
 
-        // 第 4 段：TransitionSection — 先试全段，再二分搜索最优子集
+        // ── 判断是否需要自动迭代 theta_a ──
+        let theta_a = self.config.throat.theta_a;
+        let theta_auto = !theta_a.is_finite() || theta_a <= 0.0 || theta_a >= PI / 2.0;
+
+        if theta_auto {
+            // 自动迭代：从初值段最后一条特征线出发，反复试算膨胀+转向，寻找最优 theta_a
+            let initial_last_line = self.sections[1]
+                .get_charlines()
+                .last()
+                .cloned()
+                .expect("InitialSection 未产生任何特征线");
+            let optimal_theta = self.find_optimal_theta_a(&initial_last_line);
+
+            // 将最佳 theta_a 写回配置和膨胀段
+            self.config.throat.theta_a = optimal_theta;
+            self.sections[2].set_theta_a(optimal_theta);
+
+            if !self.config.geometry.height_e.is_finite() {
+                eprintln!(
+                    "  →  selected theta_a = {:.6}° for p_ambient = {:.1} Pa",
+                    optimal_theta.to_degrees(),
+                    self.config.outlet.p_ambient
+                );
+            } else {
+                eprintln!(
+                    "  →  selected theta_a = {:.6}° for height_e = {:.4} m",
+                    optimal_theta.to_degrees(),
+                    self.config.geometry.height_e
+                );
+            }
+        }
+
+        // ── 第 2 段：膨胀段 ──
+        {
+            let last_line = {
+                let prev_lines = self.sections[1].get_charlines();
+                prev_lines.last().cloned()
+            };
+            if let Some(line) = last_line {
+                self.sections[2].inherit_last_line(&line);
+            }
+        }
+        self.sections[2].run(self.unitprocess.as_ref(), &self.config);
+
+        // ── 第 3 段：转向段 — 先试全段，再二分搜索最优子集 ──
         {
             let last_line = {
                 let prev_lines = self.sections[2].get_charlines();
@@ -69,6 +222,235 @@ impl ConstraintNozzle {
         self.cal_transition_to_target_length();
     }
 
+    /// 自动迭代寻找满足背压（或出口高度）约束的最优初始膨胀角 `theta_a`。
+    ///
+    /// 算法流程（参考 C++ constraint-nozzle.hpp）：
+    /// 1. 从大到小试探上界（80°→10°），从小到大试探下界（0.1°→30°）
+    /// 2. 用 TOMS748 在上下界之间寻根
+    /// 3. 返回使 `p_a - p_ambient = 0`（或 `h_e - height_e = 0`）的 theta_a
+    fn find_optimal_theta_a(&self, initial_last_line: &CharLine) -> f64 {
+        eprintln!("  Finding best initial expansion angle theta_a ...");
+
+        let p_ambient = self.config.outlet.p_ambient;
+        let height_e_fixed = self.config.geometry.height_e.is_finite();
+
+        // ── 辅助函数：给定 theta_a，计算约束差值 ──
+        let cal_cond_diff = |theta_a: f64, verbose: bool| -> Option<f64> {
+            let r_t = self.config.throat.radius_throat;
+            let length = self.config.geometry.length;
+
+            // 1. 创建并运行膨胀段
+            let mut exp = ExpansionSection::new(r_t, theta_a, length);
+            exp.inherit_last_line(initial_last_line);
+            exp.run(self.unitprocess.as_ref(), &self.config);
+
+            let exp_lines = exp.get_charlines();
+            let exp_last = exp_lines.last()?;
+            if exp_last.len() < 2 {
+                if verbose {
+                    eprintln!(
+                        "    θ = {:.3}°  →  expansion produced < 2 points, skip",
+                        theta_a.to_degrees()
+                    );
+                }
+                return None;
+            }
+
+            // 2. 运行转向段至目标长度
+            let ts = run_transition_to_target_length(
+                exp_last,
+                self.unitprocess.as_ref(),
+                &self.config,
+                self.cal_exit_factory,
+            )?;
+
+            // 3. 取出壁面出口点，计算约束差值
+            let ts_lines = ts.get_charlines();
+            let wall_point = ts_lines.last()?.first()?;
+            if !wall_point.is_valid() {
+                if verbose {
+                    eprintln!(
+                        "    θ = {:.3}°  →  exit wall point invalid, skip",
+                        theta_a.to_degrees()
+                    );
+                }
+                return None;
+            }
+
+            // 喷嘴长度 = 出口轴线点 x - 初值线壁面点 x
+            let nozzle_len = ts_lines
+                .last()
+                .and_then(|line| line.last())
+                .map(|p| p.x)
+                .unwrap_or(f64::NAN);
+
+            if height_e_fixed {
+                // 固定出口高度模式：基于出口高度收敛
+                let h_e = wall_point.y;
+                let diff = h_e - self.config.geometry.height_e;
+                let pct =
+                    (h_e - self.config.geometry.height_e) / self.config.geometry.height_e * 100.0;
+                if verbose {
+                    eprintln!(
+                        "    θ = {:>10.6}°  →  h_e = {:>10.6} m  ({:>+9.4}%)  L = {:.6} m",
+                        theta_a.to_degrees(),
+                        h_e,
+                        pct,
+                        nozzle_len
+                    );
+                }
+                Some(diff)
+            } else {
+                // 自由出口高度模式：基于背压收敛
+                let p_a = cal_pb_otn(wall_point);
+                let diff = p_a - p_ambient;
+                let pct = (p_a - p_ambient) / p_ambient * 100.0;
+                if verbose {
+                    eprintln!(
+                        "    θ = {:>10.6}°  →  p_a = {:>10.3} Pa  ({:>+9.4}%)  L = {:.6} m",
+                        theta_a.to_degrees(),
+                        p_a,
+                        pct,
+                        nozzle_len
+                    );
+                }
+                Some(diff)
+            }
+        };
+
+        // ── 1. 上界试探：从大到小找能使计算不崩溃的角度 ──
+        eprintln!("    searching upper bound (80° → 10°) ...");
+        let upper_result = (|| -> Option<(f64, f64)> {
+            for degree in [80.0_f64, 70.0, 60.0, 50.0, 40.0, 30.0, 20.0, 10.0] {
+                let theta = degree.to_radians();
+                if let Some(diff) = cal_cond_diff(theta, false) {
+                    if diff.is_finite() {
+                        // 打印成功的上界以便用户了解范围
+                        cal_cond_diff(theta, true);
+                        return Some((theta, diff));
+                    }
+                }
+            }
+            None
+        })();
+
+        // ── 2. 下界试探：从小到上找能使计算不崩溃的角度 ──
+        eprintln!("    searching lower bound (0.1° → 30°) ...");
+        let lower_result = (|| -> Option<(f64, f64)> {
+            for degree in [0.1_f64, 1.0, 10.0, 20.0, 30.0] {
+                let theta = degree.to_radians();
+                if let Some(diff) = cal_cond_diff(theta, false) {
+                    if diff.is_finite() {
+                        cal_cond_diff(theta, true);
+                        return Some((theta, diff));
+                    }
+                }
+            }
+            None
+        })();
+
+        // ── 3a. 两边界均失败 — 退回默认值 ──
+        if upper_result.is_none() && lower_result.is_none() {
+            eprintln!("    all bracket candidates failed, using default 20°");
+            return 20.0_f64.to_radians();
+        }
+
+        // ── 3b. 仅有一边界成功 — 直接使用该角度 ──
+        if upper_result.is_none() {
+            let (theta, _) = lower_result.unwrap();
+            eprintln!(
+                "    only lower bound found, using θ = {:.3}°",
+                theta.to_degrees()
+            );
+            return theta;
+        }
+        if lower_result.is_none() {
+            let (theta, _) = upper_result.unwrap();
+            eprintln!(
+                "    only upper bound found, using θ = {:.3}°",
+                theta.to_degrees()
+            );
+            return theta;
+        }
+
+        let (xa, fa) = lower_result.unwrap();
+        let (xb, fb) = upper_result.unwrap();
+
+        eprintln!(
+            "    bracket: [{:.3}°, {:.3}°]  fa={:+.3e}  fb={:+.3e}",
+            xa.to_degrees(),
+            xb.to_degrees(),
+            fa,
+            fb
+        );
+
+        // ── 3c. 两端点函数值同号 — 区间内可能无根，取更接近零的一端 ──
+        if fa * fb > 0.0 {
+            let theta = if fa.abs() < fb.abs() { xa } else { xb };
+            eprintln!(
+                "    fa·fb > 0 (no sign change in bracket), using best endpoint θ = {:.3}°",
+                theta.to_degrees()
+            );
+            return theta;
+        }
+
+        // ── 4. TOMS748 寻根 ──
+        eprintln!("    solving with TOMS748 (tol = 0.01°, max_iter = 20) ...");
+        let theta_tol = 0.01_f64.to_radians();
+        let max_iter = 20;
+
+        // 包装函数：每次求值输出进度
+        use std::cell::Cell;
+        let eval_count = Cell::new(0u32);
+
+        let f = |theta: f64| -> f64 {
+            let n = eval_count.get() + 1;
+            eval_count.set(n);
+            match cal_cond_diff(theta, true) {
+                Some(diff) => diff,
+                None => {
+                    eprintln!(
+                        "    TOMS748 iter {}: θ = {:.3}°  →  computation failed, using NaN",
+                        n,
+                        theta.to_degrees()
+                    );
+                    f64::NAN
+                }
+            }
+        };
+
+        match toms748::solve_bracket(xa, xb, &f, Tolerance::new(theta_tol, theta_tol), max_iter) {
+            Ok(bracket) => {
+                let theta_opt = 0.5 * (bracket.a + bracket.b);
+
+                eprintln!(
+                    "    TOMS748 converged in {} iterations, bracket = [{:.6}°, {:.6}°]",
+                    bracket.iterations,
+                    bracket.a.to_degrees(),
+                    bracket.b.to_degrees()
+                );
+
+                // 检查是否收敛到边界（可能未真正找到根）
+                if (theta_opt - xa).abs() < theta_tol || (theta_opt - xb).abs() < theta_tol {
+                    eprintln!(
+                        "    WARNING: solution hit bracket boundary [{:.3}°, {:.3}°], root may be outside",
+                        xa.to_degrees(),
+                        xb.to_degrees()
+                    );
+                }
+                theta_opt
+            }
+            Err(_) => {
+                let theta = if fa.abs() < fb.abs() { xa } else { xb };
+                eprintln!(
+                    "    TOMS748 failed to converge, using best endpoint θ = {:.3}°",
+                    theta.to_degrees()
+                );
+                theta
+            }
+        }
+    }
+
     /// 二分搜索确定转向段初始线子集，使出口 x 接近目标长度
     fn cal_transition_to_target_length(&mut self) {
         let exp_lines = self.sections[2].get_charlines();
@@ -76,90 +458,23 @@ impl ConstraintNozzle {
             Some(l) => l.clone(),
             None => return,
         };
-        let n_exp = exp_last.len();
-        if n_exp < 2 {
+        if exp_last.len() < 2 {
             return;
         }
 
-        let tol = Tolerance::new(1e-4, 1e-4);
-        let axisym = self.config.control.axisymmetric;
-        let length = self.config.geometry.length;
-        let up = self.unitprocess.as_ref();
-        let cfg = &self.config;
-        let exit_factory = self.cal_exit_factory;
-
-        // 辅助函数：用 expansion 线前 i+1 个点作为 line_init，运行转向段，返回 exit_x - length
-        let trial = |i: usize| -> f64 {
-            let mut sub_line = CharLine::with_capacity(i + 1);
-            for pt in exp_last.iter().take(i + 1) {
-                sub_line.push(pt.clone());
+        match run_transition_to_target_length(
+            &exp_last,
+            self.unitprocess.as_ref(),
+            &self.config,
+            self.cal_exit_factory,
+        ) {
+            Some(ts) => {
+                self.sections[3] = Box::new(ts);
             }
-            let cal_exit = exit_factory(axisym);
-            let mut ts = TransitionSection::new(cal_exit, length);
-            ts.inherit_last_line(&sub_line);
-            ts.run(up, cfg);
-            ts.get_charlines()
-                .last()
-                .and_then(|line| line.last())
-                .map_or(f64::NAN, |p| p.x - length)
-        };
-
-        // 先试全段
-        let f_full = trial(n_exp - 1);
-        if f_full.is_nan() || f_full.abs() < tol.abs {
-            return;
-        }
-
-        // 二分搜索：找合适的 line_init 子集长度
-        let lo = 1_i64;
-        let hi = (n_exp - 1) as i64;
-        let flo = trial(lo as usize);
-
-        if flo.is_nan() || flo * f_full > 0.0 {
-            return;
-        }
-
-        let mut left = lo;
-        let mut right = hi;
-        #[allow(unused_assignments)]
-        let mut f_left = flo;
-        for _ in 0..50 {
-            if (right - left) <= 1 {
-                break;
-            }
-            let mid = (left + right) / 2;
-            let f_mid = trial(mid as usize);
-            if f_mid.is_nan() {
-                break;
-            }
-            if f_mid.abs() < tol.abs {
-                left = mid;
-                right = mid;
-                break;
-            }
-            if f_left * f_mid < 0.0 {
-                right = mid;
-            } else {
-                left = mid;
-                f_left = f_mid;
+            None => {
+                // 转向段无法收敛到目标长度，保留现有结果
             }
         }
-
-        let best_i = if (trial(left as usize).abs()) < (trial(right as usize).abs()) {
-            left as usize
-        } else {
-            right as usize
-        };
-
-        let mut sub_line = CharLine::with_capacity(best_i + 1);
-        for pt in exp_last.iter().take(best_i + 1) {
-            sub_line.push(pt.clone());
-        }
-        let cal_exit = exit_factory(axisym);
-        let mut ts = TransitionSection::new(cal_exit, length);
-        ts.inherit_last_line(&sub_line);
-        ts.run(up, cfg);
-        self.sections[3] = Box::new(ts);
     }
 
     pub fn get_assembly_charlines(&self) -> CharLines {
@@ -175,17 +490,20 @@ impl ConstraintNozzle {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{nozzle::config::*, Material};
+    use crate::{Material, nozzle::config::*};
 
     use super::*;
     #[test]
     fn test_new_and_run() {
         let config = NozzleConfig {
             control: Control::default(),
-            material: Material::air_piecewise_polynomial(), // 使用理想空气
+            material: Material::from_rgas_gamma(287.042, 1.4), // 使用理想空气
             inlet: Inlet::default(),
             geometry: Geometry::default(),
-            throat: Throat::default(),
+            throat: Throat {
+                radius_throat: 0.0,
+                theta_a: f64::NAN, // 让算法自动选择初始膨胀角
+            },
             outlet: Outlet::default(),
             io: IO::default(),
         };
@@ -193,6 +511,11 @@ mod tests {
         let mut n = ConstraintNozzle::new_otn(config);
         n.run();
         let lines = n.get_assembly_charlines();
+
+        // 写入文件以便可视化检查
+        let mut output_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        output_dir.push("../../target/tmp/fluid_field.txt");
+        lines.write_to_file(output_dir, false).unwrap();
 
         // 验证至少产生了特征线数据
         assert!(!lines.is_empty(), "应产生流场数据");
@@ -214,9 +537,11 @@ mod tests {
             }
         }
 
-        // 验证出口 x 不超出目标长度
+        // 验证出口 x 不超出目标长度，且至少到达目标附近
+        let mut max_x: f64 = 0.0;
         for line in lines.iter() {
             for point in line.iter() {
+                max_x = max_x.max(point.x);
                 assert!(
                     point.x < target_len + 1.0,
                     "x={} 超出长度 {target_len}",
@@ -224,6 +549,12 @@ mod tests {
                 );
             }
         }
+        assert!(
+            max_x >= target_len - 1e-4,
+            "出口未到达目标长度: max_x={:.6}, target={:.6}",
+            max_x,
+            target_len
+        );
     }
 
     /// 使用非零膨胀角、非零喉部半径测试完整喷管（含膨胀段）
@@ -298,6 +629,7 @@ mod tests {
             outlet: Outlet::default(),
             io: IO::default(),
         };
+        let target_len = config.geometry.length;
         let mut n = ConstraintNozzle::new_otn(config);
         n.run();
 
@@ -413,6 +745,7 @@ mod tests {
         lines.write_to_file(output_dir, false).unwrap();
 
         // 验证所有点有效
+        let mut max_x: f64 = 0.0;
         for (li, line) in lines.iter().enumerate() {
             for (pi, point) in line.iter().enumerate() {
                 assert!(point.is_valid(), "无效点: line={li} pt={pi}");
@@ -422,7 +755,14 @@ mod tests {
                     point.x,
                     point.y
                 );
+                max_x = max_x.max(point.x);
             }
         }
+        assert!(
+            max_x >= target_len - 1e-4,
+            "出口未到达目标长度: max_x={:.6}, target={:.6}",
+            max_x,
+            target_len
+        );
     }
 }
