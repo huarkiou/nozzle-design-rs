@@ -224,13 +224,8 @@ impl Section for ExpansionSection {
                 break;
             }
             let target_theta = if is_ending {
-                // 逐步减小步长平滑逼近 theta_a，避免壁面点跳跃
-                let step = dtheta * 0.5;
-                if prev_theta + step >= theta_a {
-                    theta_a
-                } else {
-                    prev_theta + step
-                }
+                // 结束阶段：直接以 theta_a 为目标，避免反复缩小步长导致特征线过密
+                theta_a
             } else {
                 prev_theta + dtheta
             };
@@ -255,15 +250,17 @@ impl Section for ExpansionSection {
                 break;
             }
 
-            // 检查是否达到目标长度
-            let last_point = line_cur.last().unwrap();
-            if last_point.x >= self.max_length && !is_ending {
+            // 若壁面角度超出目标值，进入结束阶段并重试
+            if !is_ending && line_cur[0].flow_direction() > theta_a {
                 is_ending = true;
-                continue; // 放弃此线，收紧角度后重试
+                continue; // 放弃超出 theta_a 的线，下一轮直接用 theta_a
             }
 
-            // dtheta 自适应调整
-            if need_dtheta && line_cur.len() >= 2 {
+            // dtheta 自适应调整 — 基于轴线侧末两点间距反馈
+            // 当前线与前一线在对称轴附近的间距应大致等比（随 y 扩张缩放），
+            // 加入阻尼避免剧烈波动导致特征线密度突变
+            if need_dtheta && line_cur.len() >= 3 {
+                let last_point = line_cur.last().unwrap();
                 let l_prev = prev_line
                     .last()
                     .unwrap()
@@ -271,11 +268,11 @@ impl Section for ExpansionSection {
                 let l_cur = last_point.distance_to(&line_cur[line_cur.len() - 2]);
                 let target_l = l_prev * line_cur[0].y / prev_line[0].y;
 
-                if (l_cur - target_l).abs() < 1e-6 {
-                    // 间距合适
-                } else {
-                    dtheta *= target_l / l_cur;
-                    dtheta = dtheta.clamp(DTHETA_MIN * 0.1, DTHETA_MAX);
+                if (l_cur - target_l).abs() > 1e-6 {
+                    let ratio = target_l / l_cur;
+                    // 阻尼修正：70% 保持 + 30% 朝目标方向，避免振荡
+                    dtheta *= 0.7 + 0.3 * ratio;
+                    dtheta = dtheta.clamp(DTHETA_MIN * 0.2, DTHETA_MAX);
                 }
 
                 if dtheta + line_cur[0].flow_direction() >= theta_a {
