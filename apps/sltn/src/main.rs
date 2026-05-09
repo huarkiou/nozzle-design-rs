@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process};
 
-use aero::moc::{CharLines, read_charlines_from_file_checked};
+use aero::moc::{read_charlines_from_file_checked, CharLines};
 use aero::streamline_trace::{StreamlineConfig, StreamlineTrace};
 use clap::Parser;
 use geometry::obj::ObjModel;
@@ -14,18 +14,30 @@ use geometry::{Circle, ClosedCurve, Ellipse, Rectangular, SuperEllipse, UserDefi
 /// field, and exports the resulting 3D nozzle geometry.
 #[derive(Parser)]
 #[command(
-    name = "streamlinetracenozzle",
+    name = "sltn",
     version,
     about = "3D streamline tracing nozzle design using MOC base flow field"
 )]
 struct Cli {
     /// TOML configuration file
-    #[arg(default_value = "StreamlineTraceNozzle.toml")]
+    #[arg(default_value = "sltn.toml")]
     configfile: PathBuf,
+
+    /// Generate a default configuration file and exit
+    #[arg(long)]
+    generate_config: bool,
 }
 
 fn main() {
-    if let Err(e) = run() {
+    let cli = Cli::parse();
+    if cli.generate_config {
+        if let Err(e) = generate_default_config(&cli.configfile) {
+            eprintln!("Error: {e}");
+            process::exit(1);
+        }
+        return;
+    }
+    if let Err(e) = run(&cli) {
         eprintln!("Error: {e}");
         process::exit(1);
     }
@@ -235,9 +247,7 @@ fn build_shape(
 // Main pipeline
 // ─────────────────────────────────────────────────────────
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
+fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     // ── 1. Load TOML config ──
     let config_path = &cli.configfile;
     eprintln!("Reading configuration from '{}'...", config_path.display());
@@ -329,3 +339,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Done.");
     Ok(())
 }
+
+fn generate_default_config(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    if path.exists() {
+        return Err(format!("{} already exists", path.display()).into());
+    }
+    std::fs::write(path, DEFAULT_CONFIG)?;
+    eprintln!("Default configuration written to {}", path.display());
+    Ok(())
+}
+
+const DEFAULT_CONFIG: &str = include_str!("../configs/default.toml");

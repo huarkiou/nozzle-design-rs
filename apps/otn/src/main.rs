@@ -17,26 +17,36 @@ use aero::{
 /// Optimal Thrust Nozzle generator using Method of Characteristics.
 #[derive(Parser)]
 #[command(
-    name = "optimumnozzle",
+    name = "otn",
     version,
     about = "Generate optimal thrust nozzle (OTN) using Method of Characteristics (MOC)."
 )]
 struct Cli {
     /// TOML configuration file
-    #[arg(default_value = "OptimumNozzle.toml")]
+    #[arg(default_value = "otn.toml")]
     configfile: PathBuf,
+
+    /// Generate a default configuration file and exit
+    #[arg(long)]
+    generate_config: bool,
 }
 
 fn main() {
-    if let Err(e) = run() {
+    let cli = Cli::parse();
+    if cli.generate_config {
+        if let Err(e) = generate_default_config(&cli.configfile) {
+            eprintln!("Error: {e}");
+            process::exit(1);
+        }
+        return;
+    }
+    if let Err(e) = run(&cli) {
         eprintln!("Error: {e}");
         process::exit(1);
     }
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
+fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     // ── Load config from TOML ──
     let config = NozzleConfig::from_toml_file(&cli.configfile)?;
     config
@@ -268,3 +278,14 @@ fn print_summary(charlines: &CharLines, config: &NozzleConfig, theta_a: f64) {
 
     eprintln!("{summary}");
 }
+
+fn generate_default_config(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    if path.exists() {
+        return Err(format!("{} already exists", path.display()).into());
+    }
+    std::fs::write(path, DEFAULT_CONFIG)?;
+    eprintln!("Default configuration written to {}", path.display());
+    Ok(())
+}
+
+const DEFAULT_CONFIG: &str = include_str!("../configs/default.toml");
