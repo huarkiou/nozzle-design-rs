@@ -16,6 +16,8 @@ const DBG_STR_LOG: bool = false;
 ///   contain the start point's x‑coordinate.
 /// * `x_positive` – Tracing direction: `true` = increasing x
 ///   (downstream), `false` = decreasing x (upstream).
+/// * `axisymmetric` – `true` for axisymmetric flow (radial =
+///   `hypot(z, y)`), `false` for planar flow (radial = `y`).
 ///
 /// # Returns
 ///
@@ -25,6 +27,7 @@ pub fn trace_streamline(
     start_point: &Point3d,
     datasource: &CharLines,
     x_positive: bool,
+    axisymmetric: bool,
 ) -> Option<WallPoints> {
     // ── basic validity ────────────────────────────────────────────
     if datasource.is_empty() {
@@ -37,7 +40,7 @@ pub fn trace_streamline(
         return None;
     }
 
-    let mut p_prev = initial_moc_point(start_point, first_line)?;
+    let mut p_prev = initial_moc_point(start_point, first_line, axisymmetric)?;
     if DBG_STR_LOG {
         eprintln!(
             "  trace start: ({:.6}, {:.6}) -> MOC ({:.6}, {:.6}, θ={:.4})",
@@ -133,8 +136,13 @@ pub fn trace_streamline(
 /// The start point comes from a cross‑section shape (`ClosedCurve`).
 /// `start_point.x` is the lateral/spatial coordinate (z in shape space),
 /// `start_point.y` is the vertical coordinate (y in shape space).
-/// The distance from the symmetry axis is `hypot(x, y)`.
-fn initial_moc_point(start_point: &Point3d, line: &CharLine) -> Option<MocPoint> {
+/// For axisymmetric flow the distance from the symmetry axis is
+/// `hypot(x, y)`; for planar flow it is simply `y`.
+fn initial_moc_point(
+    start_point: &Point3d,
+    line: &CharLine,
+    axisymmetric: bool,
+) -> Option<MocPoint> {
     if line.is_empty() {
         return None;
     }
@@ -142,8 +150,12 @@ fn initial_moc_point(start_point: &Point3d, line: &CharLine) -> Option<MocPoint>
     // The characteristic line x is the axial station across all points.
     let line_x = line[0].x;
 
-    // True radial distance from the symmetry axis (not just y).
-    let r_target = start_point.x.hypot(start_point.y);
+    // Radial distance from the symmetry axis.
+    let r_target = if axisymmetric {
+        start_point.x.hypot(start_point.y)
+    } else {
+        start_point.y
+    };
 
     // Clamp to the flow field radial bounds.
     let r_min = line.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
@@ -206,7 +218,7 @@ mod tests {
     fn test_trace_empty_fails() {
         let datasource = CharLines::new();
         let start = Point3d::new(0.0, 0.5, 0.0);
-        assert!(trace_streamline(&start, &datasource, true).is_none());
+        assert!(trace_streamline(&start, &datasource, true, true).is_none());
     }
 
     #[test]
@@ -218,7 +230,7 @@ mod tests {
         cl.push(line);
 
         let start = Point3d::new(0.0, 1.0, 0.0);
-        let result = trace_streamline(&start, &cl, true);
+        let result = trace_streamline(&start, &cl, true, true);
         // With only one char line we only get the bootstrap point.
         assert!(result.is_some());
         let pts = result.unwrap();

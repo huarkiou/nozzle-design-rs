@@ -119,20 +119,27 @@ impl StreamlineTrace {
             reversed_outlet.push(line.clone());
         }
 
+        let axisymmetric = self.config.axisymmetric;
+
         let (downstream_result, upstream_result) = rayon::join(
             || -> Result<Vec<WallPoints>, String> {
                 inlet_points_raw
                     .par_iter()
                     .map(|pt| {
-                        let r0 = pt.x.hypot(pt.y);
-                        let wp = trace::trace_streamline(pt, &self.config.datasource_inlet, true)
-                            .ok_or_else(|| {
+                        let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
+                        let wp = trace::trace_streamline(
+                            pt,
+                            &self.config.datasource_inlet,
+                            true,
+                            axisymmetric,
+                        )
+                        .ok_or_else(|| {
                             format!(
                                 "Downstream trace failed for inlet point ({:.4}, {:.4})",
                                 pt.x, pt.y
                             )
                         })?;
-                        Ok(transform_to_3d(wp, pt, r0))
+                        Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
                     .collect()
             },
@@ -140,16 +147,17 @@ impl StreamlineTrace {
                 matched_outlet
                     .par_iter()
                     .map(|pt| {
-                        let r0 = pt.x.hypot(pt.y);
-                        let mut wp = trace::trace_streamline(pt, &reversed_outlet, false)
-                            .ok_or_else(|| {
-                                format!(
-                                    "Upstream trace failed for outlet point ({:.4}, {:.4})",
-                                    pt.x, pt.y
-                                )
-                            })?;
+                        let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
+                        let mut wp =
+                            trace::trace_streamline(pt, &reversed_outlet, false, axisymmetric)
+                                .ok_or_else(|| {
+                                    format!(
+                                        "Upstream trace failed for outlet point ({:.4}, {:.4})",
+                                        pt.x, pt.y
+                                    )
+                                })?;
                         wp.reverse();
-                        Ok(transform_to_3d(wp, pt, r0))
+                        Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
                     .collect()
             },
@@ -187,21 +195,28 @@ impl StreamlineTrace {
 /// Transform a 2D streamline (x = axial, y = radial from flow field)
 /// into 3D coordinates using the start point's spatial position.
 ///
-/// The start point `origin` (from the cross‑section shape) has
-/// coordinates `(z_s, y_s)` = `(origin.x, origin.y)`.  Its distance
-/// from the symmetry axis is `r0 = hypot(z_s, y_s)`.
+/// The start point `origin` has coordinates `(z_s, y_s)`.
 ///
-/// For each flow‑field point `(x_f, r_f)` the 3D point is:
+/// **Axisymmetric**: each flow-field radial position `r_f` is projected
+/// onto the 3D sphere:
+///   `y_3d = r_f × (z_s / r₀)`, `z_3d = r_f × (y_s / r₀)`
+/// where `r₀ = hypot(z_s, y_s)`.
 ///
-/// ```text
-///   x_3d = x_f
-///   y_3d = r_f * (z_s / r0)     (lateral / spatial)
-///   z_3d = r_f * (y_s / r0)     (vertical)
-/// ```
+/// **Planar**: the flow is uniform in the z‑direction.  y follows the
+/// flow, z stays constant:
+///   `y_3d = r_f × (y_s / r₀)`, `z_3d = z_s`
 ///
-/// If `r0 ≈ 0` the point sits on the symmetry axis and the 3D
+/// If `r₀ ≈ 0` the point sits on the symmetry axis and the 3D
 /// coordinates collapse to `(x_f, 0, 0)`.
-fn transform_to_3d(mut streamline: WallPoints, origin: &Point3d, r0: f64) -> WallPoints {
+fn transform_to_3d(
+    mut streamline: WallPoints,
+    origin: &Point3d,
+    r0: f64,
+    axisymmetric: bool,
+) -> WallPoints {
+    let zs = origin.x; // spatial (shape z)
+    let ys = origin.y; // vertical  (shape y)
+
     if r0 < 1e-15 {
         for p in &mut streamline {
             p.y = 0.0;
@@ -209,12 +224,19 @@ fn transform_to_3d(mut streamline: WallPoints, origin: &Point3d, r0: f64) -> Wal
         }
         return streamline;
     }
-    let zs = origin.x; // spatial (shape z → 3D y)
-    let ys = origin.y; // vertical  (shape y → 3D z)
-    for p in &mut streamline {
-        let rf = p.y; // radial position from flow field
-        p.y = rf * zs / r0;
-        p.z = rf * ys / r0;
+
+    if axisymmetric {
+        for p in &mut streamline {
+            let rf = p.y;
+            p.y = rf * zs / r0;
+            p.z = rf * ys / r0;
+        }
+    } else {
+        for p in &mut streamline {
+            let rf = p.y;
+            p.y = rf * ys / r0;
+            p.z = zs;
+        }
     }
     streamline
 }
