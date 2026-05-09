@@ -44,6 +44,7 @@ fn make_test_field() -> CharLines {
 }
 
 #[test]
+#[ignore = "integration test, run with -- --ignored"]
 fn test_full_pipeline_axisymmetric() {
     let field = make_test_field();
 
@@ -97,6 +98,7 @@ fn test_full_pipeline_axisymmetric() {
 }
 
 #[test]
+#[ignore = "integration test, run with -- --ignored"]
 fn test_full_pipeline_planar() {
     let field = make_test_field();
 
@@ -122,6 +124,7 @@ fn test_full_pipeline_planar() {
 }
 
 #[test]
+#[ignore = "integration test, run with -- --ignored"]
 fn test_rev_char_lines() {
     let field = make_test_field();
     let rev = aero::streamline_trace::RevCharLines::new(&field);
@@ -135,6 +138,7 @@ fn test_rev_char_lines() {
 }
 
 #[test]
+#[ignore = "integration test, run with -- --ignored"]
 fn test_error_on_empty_datasource() {
     let config = StreamlineConfig {
         axisymmetric: true,
