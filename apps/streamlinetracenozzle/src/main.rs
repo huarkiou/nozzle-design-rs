@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process};
 
-use aero::moc::{read_charlines_from_file_checked, CharLines};
+use aero::moc::{CharLines, read_charlines_from_file_checked};
 use aero::streamline_trace::{StreamlineConfig, StreamlineTrace};
 use clap::Parser;
 use geometry::obj::ObjModel;

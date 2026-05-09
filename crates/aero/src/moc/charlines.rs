@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    moc::{CharLine, MocPoint},
     Material,
+    moc::{CharLine, MocPoint},
 };
 
 #[derive(Clone)]
@@ -66,7 +66,7 @@ impl CharLines {
             .create(true); // 不存在则创建
         if append {
             options.append(true); // 追加模式（隐含 write）
-                                  // 注意：append 模式下 truncate 会被忽略，但显式设为 false 更安全
+            // 注意：append 模式下 truncate 会被忽略，但显式设为 false 更安全
             options.truncate(false);
         } else {
             options.truncate(true); // 覆盖写入：先清空
