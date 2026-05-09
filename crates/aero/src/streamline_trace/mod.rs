@@ -3,7 +3,10 @@ mod merge;
 mod trace;
 mod weight;
 
-use std::fmt;
+use std::{
+    fmt,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use rayon::prelude::*;
 
@@ -179,12 +182,13 @@ impl StreamlineTrace {
         // ── Step 3+4: parallel downstream & upstream tracing ─────────
         let rev_outlet = RevCharLines::new(&self.config.datasource_outlet);
         let axisymmetric = self.config.axisymmetric;
+        let n_total = n_theta;
 
         // Collect failures instead of bailing on first error.
-        // Each item: Ok(wp) or Err((z, y)) for a failed point.
         let (downstream_results, upstream_results) = rayon::join(
             || -> Vec<Result<WallPoints, (f64, f64)>> {
-                inlet_points_raw
+                let counter = AtomicUsize::new(0);
+                let results: Vec<_> = inlet_points_raw
                     .par_iter()
                     .map(|pt| {
                         let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
@@ -195,21 +199,34 @@ impl StreamlineTrace {
                             axisymmetric,
                         )
                         .ok_or((pt.x, pt.y))?;
+                        let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if n % 10 == 0 || n == n_total {
+                            eprintln!("  downstream  {n}/{n_total}");
+                        }
                         Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
-                    .collect()
+                    .collect();
+                eprintln!("  downstream  done");
+                results
             },
             || -> Vec<Result<WallPoints, (f64, f64)>> {
-                matched_outlet
+                let counter = AtomicUsize::new(0);
+                let results: Vec<_> = matched_outlet
                     .par_iter()
                     .map(|pt| {
                         let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
                         let mut wp = trace::trace_streamline(pt, &rev_outlet, false, axisymmetric)
                             .ok_or((pt.x, pt.y))?;
                         wp.reverse();
+                        let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if n % 10 == 0 || n == n_total {
+                            eprintln!("  upstream    {n}/{n_total}");
+                        }
                         Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
-                    .collect()
+                    .collect();
+                eprintln!("  upstream    done");
+                results
             },
         );
 
