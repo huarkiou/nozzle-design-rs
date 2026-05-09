@@ -57,6 +57,7 @@ impl ObjModel {
 
         // ---- build faces (triangulate quad strips) ----
         let mut faces = Vec::new();
+        let degenerate_eps: f64 = 1e-15;
         // Only create faces when there are at least 2 profiles.
         for i in 0..n_profiles.saturating_sub(1) {
             let base_i = i * n_theta;
@@ -64,17 +65,20 @@ impl ObjModel {
             for j in 0..n_theta {
                 let j_next = (j + 1) % n_theta;
 
-                // Quad: p[i][j], p[i][j_next], p[i+1][j], p[i+1][j_next]
-                // Triangle 1: p[i][j], p[i][j_next], p[i+1][j_next]
-                // Triangle 2: p[i][j], p[i+1][j_next], p[i+1][j]
-                // Face indices are 1-based.
-                let a = base_i + j + 1;
-                let b = base_i + j_next + 1;
-                let c = base_ip1 + j_next + 1;
-                let d = base_ip1 + j + 1;
+                // 0-based vertex indices
+                let ai = base_i + j;
+                let bi = base_i + j_next;
+                let ci = base_ip1 + j_next;
+                let di = base_ip1 + j;
 
-                faces.push([a, b, c]);
-                faces.push([a, c, d]);
+                // Triangle 1: a, b, c
+                if triangle_area(&vertices[ai], &vertices[bi], &vertices[ci]) > degenerate_eps {
+                    faces.push([ai + 1, bi + 1, ci + 1]);
+                }
+                // Triangle 2: a, c, d
+                if triangle_area(&vertices[ai], &vertices[ci], &vertices[di]) > degenerate_eps {
+                    faces.push([ai + 1, ci + 1, di + 1]);
+                }
             }
         }
 
@@ -181,6 +185,15 @@ impl Default for ObjModel {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Compute the unsigned area of triangle (v1, v2, v3).
+/// Returns 0.0 for degenerate (collinear) triangles.
+fn triangle_area(v1: &[f64; 3], v2: &[f64; 3], v3: &[f64; 3]) -> f64 {
+    let u = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
+    let v = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
+    let cr = cross(&u, &v);
+    0.5 * vector_length(&cr)
+}
 
 /// Compute the unit face normal (cross product of two edge vectors).
 ///

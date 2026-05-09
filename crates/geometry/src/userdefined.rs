@@ -14,7 +14,19 @@ pub struct UserDefined {
 }
 
 impl UserDefined {
-    pub fn new(points: Vec<Point3d>, alpha: f64, center_hint: Option<(f64, f64)>) -> Self {
+    /// Create a new `UserDefined` shape.
+    ///
+    /// Returns an error if `points` has fewer than 3 entries (not a
+    /// closed polygon).  If `center_hint` is `None` the centroid of
+    /// the points is used as the center.
+    pub fn new(
+        points: Vec<Point3d>,
+        alpha: f64,
+        center_hint: Option<(f64, f64)>,
+    ) -> Result<Self, &'static str> {
+        if points.len() < 3 {
+            return Err("userdefined shape requires at least 3 points");
+        }
         let center = match center_hint {
             Some(c) => c,
             None => {
@@ -29,11 +41,11 @@ impl UserDefined {
                 }
             }
         };
-        Self {
+        Ok(Self {
             points,
             alpha,
             center,
-        }
+        })
     }
 }
 

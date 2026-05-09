@@ -3,8 +3,8 @@ use std::f64::consts::PI;
 use crate::basics::sgn;
 use crate::closed_curve::ClosedCurve;
 use crate::point::Point3d;
-use math::Tolerance;
 use math::rootfinding::secant;
+use math::Tolerance;
 
 /// A super-ellipse (Lamé curve) cross-section.
 ///
@@ -30,14 +30,25 @@ pub struct SuperEllipse {
 
 impl SuperEllipse {
     /// Create a new `SuperEllipse`.
-    pub fn new(a: f64, b: f64, power: f64, alpha: f64, center: (f64, f64)) -> Self {
-        Self {
+    ///
+    /// Returns an error if `a ≤ 0`, `b ≤ 0`, or `power ≤ 0`.
+    pub fn new(
+        a: f64,
+        b: f64,
+        power: f64,
+        alpha: f64,
+        center: (f64, f64),
+    ) -> Result<Self, &'static str> {
+        if a <= 0.0 || b <= 0.0 || power <= 0.0 {
+            return Err("superellipse a, b, and power must be > 0");
+        }
+        Ok(Self {
             a,
             b,
             power,
             alpha,
             center,
-        }
+        })
     }
 
     /// Tolerance for root-finding.

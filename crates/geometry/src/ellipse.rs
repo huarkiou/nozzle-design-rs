@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use crate::closed_curve::ClosedCurve;
 use crate::point::Point3d;
-use math::Tolerance;
 use math::rootfinding::secant;
+use math::Tolerance;
 
 /// An elliptical cross-section with semi-major axis `a`, semi-minor axis
 /// `b`, rotation `alpha` (radians), and center offset `(x0, y0)`.
@@ -21,13 +21,27 @@ pub struct Ellipse {
 
 impl Ellipse {
     /// Create a new `Ellipse`.
-    pub fn new(a: f64, b: f64, alpha: f64, center: (f64, f64)) -> Self {
-        Self {
+    ///
+    /// Returns an error if `a ≤ 0` or `b ≤ 0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometry::{Ellipse, ClosedCurve};
+    ///
+    /// let e = Ellipse::new(1.0, 0.5, 0.0, (0.0, 0.0)).unwrap();
+    /// assert_eq!(e.generate_points(8).len(), 8);
+    /// ```
+    pub fn new(a: f64, b: f64, alpha: f64, center: (f64, f64)) -> Result<Self, &'static str> {
+        if a <= 0.0 || b <= 0.0 {
+            return Err("ellipse semi-axes must be > 0");
+        }
+        Ok(Self {
             a,
             b,
             alpha,
             center,
-        }
+        })
     }
 
     /// Tolerance for root-finding.

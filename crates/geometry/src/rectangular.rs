@@ -13,13 +13,24 @@ pub struct Rectangular {
 }
 
 impl Rectangular {
-    pub fn new(length: f64, width: f64, alpha: f64, center: (f64, f64)) -> Self {
-        Self {
+    /// Create a new `Rectangular`.
+    ///
+    /// Returns an error if `length ≤ 0` or `width ≤ 0`.
+    pub fn new(
+        length: f64,
+        width: f64,
+        alpha: f64,
+        center: (f64, f64),
+    ) -> Result<Self, &'static str> {
+        if length <= 0.0 || width <= 0.0 {
+            return Err("rectangular length and width must be > 0");
+        }
+        Ok(Self {
             length,
             width,
             alpha,
             center,
-        }
+        })
     }
 
     fn corners(&self) -> [(f64, f64); 4] {

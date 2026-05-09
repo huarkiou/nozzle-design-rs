@@ -51,8 +51,8 @@ fn test_full_pipeline_axisymmetric() {
         axisymmetric: true,
         datasource_inlet: field.clone(),
         datasource_outlet: field,
-        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0))),
-        outlet_shape: Box::new(Ellipse::new(0.7, 0.5, 0.0, (0.0, 0.0))),
+        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0)).unwrap()),
+        outlet_shape: Box::new(Ellipse::new(0.7, 0.5, 0.0, (0.0, 0.0)).unwrap()),
         monotonic: false,
         weight_parameter_a: 0.0,
     };
@@ -104,8 +104,8 @@ fn test_full_pipeline_planar() {
         axisymmetric: false,
         datasource_inlet: field.clone(),
         datasource_outlet: field,
-        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0))),
-        outlet_shape: Box::new(Circle::new(0.7, (0.0, 0.0))),
+        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0)).unwrap()),
+        outlet_shape: Box::new(Circle::new(0.7, (0.0, 0.0)).unwrap()),
         monotonic: false,
         weight_parameter_a: 0.0,
     };
@@ -140,8 +140,8 @@ fn test_error_on_empty_datasource() {
         axisymmetric: true,
         datasource_inlet: CharLines::new(),
         datasource_outlet: CharLines::new(),
-        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0))),
-        outlet_shape: Box::new(Circle::new(0.5, (0.0, 0.0))),
+        inlet_shape: Box::new(Circle::new(1.0, (0.0, 0.0)).unwrap()),
+        outlet_shape: Box::new(Circle::new(0.5, (0.0, 0.0)).unwrap()),
         monotonic: false,
         weight_parameter_a: 0.0,
     };

@@ -2,9 +2,19 @@ use crate::closed_curve::ClosedCurve;
 use crate::point::Point3d;
 
 /// A circular cross-section.
+///
+/// # Examples
+///
+/// ```
+/// use geometry::{Circle, ClosedCurve};
+///
+/// let c = Circle::new(1.0, (0.0, 0.0)).unwrap();
+/// let pts = c.generate_points(4);
+/// assert_eq!(pts.len(), 4);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Circle {
-    /// Radius of the circle.
+    /// Radius of the circle.  Must be > 0.
     pub radius: f64,
     /// Center offset (x0, y0).
     pub center: (f64, f64),
@@ -12,8 +22,13 @@ pub struct Circle {
 
 impl Circle {
     /// Create a new `Circle` with the given radius and center offset.
-    pub fn new(radius: f64, center: (f64, f64)) -> Self {
-        Self { radius, center }
+    ///
+    /// Returns an error if `radius ≤ 0`.
+    pub fn new(radius: f64, center: (f64, f64)) -> Result<Self, &'static str> {
+        if radius <= 0.0 {
+            return Err("circle radius must be > 0");
+        }
+        Ok(Self { radius, center })
     }
 }
 
