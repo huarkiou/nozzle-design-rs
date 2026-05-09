@@ -3,11 +3,66 @@ mod merge;
 mod trace;
 mod weight;
 
+use std::fmt;
+
 use rayon::prelude::*;
 
 use crate::moc::CharLines;
 use geometry::wallpoints::{interpolate_points_theta, refine_or_coarsen_boundaries};
 use geometry::{ClosedCurve, Point3d, WallPoints};
+
+// ── error type ─────────────────────────────────────────────────
+
+/// Errors that can occur during streamline tracing.
+#[derive(Debug)]
+pub enum StreamlineTraceError {
+    /// Invalid parameter.
+    InvalidParameter(String),
+    /// One or more downstream traces failed.
+    DownstreamTraceFailed {
+        /// The inlet point (z, y) whose trace failed.
+        point: (f64, f64),
+        /// How many points failed.
+        failed_count: usize,
+        /// Total number of points.
+        total: usize,
+    },
+    /// One or more upstream traces failed.
+    UpstreamTraceFailed {
+        /// The outlet point (z, y) whose trace failed.
+        point: (f64, f64),
+        failed_count: usize,
+        total: usize,
+    },
+}
+
+impl fmt::Display for StreamlineTraceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidParameter(msg) => write!(f, "invalid parameter: {msg}"),
+            Self::DownstreamTraceFailed {
+                point,
+                failed_count,
+                total,
+            } => write!(
+                f,
+                "downstream trace failed: {failed_count}/{total} streamlines — first at ({:.4}, {:.4})",
+                point.0, point.1
+            ),
+            Self::UpstreamTraceFailed {
+                point,
+                failed_count,
+                total,
+            } => write!(
+                f,
+                "upstream trace failed: {failed_count}/{total} streamlines — first at ({:.4}, {:.4})",
+                point.0, point.1
+            ),
+        }
+    }
+}
+
+impl std::error::Error for StreamlineTraceError {}
 
 /// A streamline paired with its polar angle for sorting.
 #[derive(Debug, Clone)]
@@ -90,18 +145,26 @@ impl StreamlineTrace {
     ///
     /// * `n_theta` – Number of azimuthal (polar‑angle) samples.
     /// * `n_axis`  – Number of axial points in each output profile.
-    pub fn run(&mut self, n_theta: usize, n_axis: usize) -> Result<(), String> {
+    pub fn run(&mut self, n_theta: usize, n_axis: usize) -> Result<(), StreamlineTraceError> {
         if n_theta < 2 {
-            return Err("n_theta must be ≥ 2".into());
+            return Err(StreamlineTraceError::InvalidParameter(
+                "n_theta must be ≥ 2".into(),
+            ));
         }
         if n_axis < 2 {
-            return Err("n_axis must be ≥ 2".into());
+            return Err(StreamlineTraceError::InvalidParameter(
+                "n_axis must be ≥ 2".into(),
+            ));
         }
         if self.config.datasource_inlet.is_empty() {
-            return Err("datasource_inlet is empty".into());
+            return Err(StreamlineTraceError::InvalidParameter(
+                "datasource_inlet is empty".into(),
+            ));
         }
         if self.config.datasource_outlet.is_empty() {
-            return Err("datasource_outlet is empty".into());
+            return Err(StreamlineTraceError::InvalidParameter(
+                "datasource_outlet is empty".into(),
+            ));
         }
 
         // ── Step 1: generate n_theta points on inlet & outlet shapes ──
@@ -109,11 +172,9 @@ impl StreamlineTrace {
         let outlet_points_raw = self.config.outlet_shape.generate_points(n_theta);
 
         // ── Step 2: match by polar angle ────────────────────────────
-        // Interpolate outlet points to the same theta values as inlet.
         let matched_outlet = interpolate_points_theta(&inlet_points_raw, &outlet_points_raw);
 
         // ── Step 3+4: parallel downstream & upstream tracing ─────────
-        // Both directions are independent — run them concurrently.
         let mut reversed_outlet = CharLines::with_capacity(self.config.datasource_outlet.len());
         for line in self.config.datasource_outlet.iter().rev() {
             reversed_outlet.push(line.clone());
@@ -121,8 +182,10 @@ impl StreamlineTrace {
 
         let axisymmetric = self.config.axisymmetric;
 
-        let (downstream_result, upstream_result) = rayon::join(
-            || -> Result<Vec<WallPoints>, String> {
+        // Collect failures instead of bailing on first error.
+        // Each item: Ok(wp) or Err((z, y)) for a failed point.
+        let (downstream_results, upstream_results) = rayon::join(
+            || -> Vec<Result<WallPoints, (f64, f64)>> {
                 inlet_points_raw
                     .par_iter()
                     .map(|pt| {
@@ -133,29 +196,19 @@ impl StreamlineTrace {
                             true,
                             axisymmetric,
                         )
-                        .ok_or_else(|| {
-                            format!(
-                                "Downstream trace failed for inlet point ({:.4}, {:.4})",
-                                pt.x, pt.y
-                            )
-                        })?;
+                        .ok_or((pt.x, pt.y))?;
                         Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
                     .collect()
             },
-            || -> Result<Vec<WallPoints>, String> {
+            || -> Vec<Result<WallPoints, (f64, f64)>> {
                 matched_outlet
                     .par_iter()
                     .map(|pt| {
                         let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
                         let mut wp =
                             trace::trace_streamline(pt, &reversed_outlet, false, axisymmetric)
-                                .ok_or_else(|| {
-                                    format!(
-                                        "Upstream trace failed for outlet point ({:.4}, {:.4})",
-                                        pt.x, pt.y
-                                    )
-                                })?;
+                                .ok_or((pt.x, pt.y))?;
                         wp.reverse();
                         Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })
@@ -163,8 +216,32 @@ impl StreamlineTrace {
             },
         );
 
-        let downstream_profiles = downstream_result?;
-        let upstream_profiles = upstream_result?;
+        // Check downstream failures
+        let ds_fails: Vec<_> = downstream_results.iter().filter(|r| r.is_err()).collect();
+        if !ds_fails.is_empty() {
+            let (z, y) = ds_fails[0].as_ref().unwrap_err();
+            return Err(StreamlineTraceError::DownstreamTraceFailed {
+                point: (*z, *y),
+                failed_count: ds_fails.len(),
+                total: downstream_results.len(),
+            });
+        }
+
+        // Check upstream failures
+        let us_fails: Vec<_> = upstream_results.iter().filter(|r| r.is_err()).collect();
+        if !us_fails.is_empty() {
+            let (z, y) = us_fails[0].as_ref().unwrap_err();
+            return Err(StreamlineTraceError::UpstreamTraceFailed {
+                point: (*z, *y),
+                failed_count: us_fails.len(),
+                total: upstream_results.len(),
+            });
+        }
+
+        let downstream_profiles: Vec<WallPoints> =
+            downstream_results.into_iter().map(|r| r.unwrap()).collect();
+        let upstream_profiles: Vec<WallPoints> =
+            upstream_results.into_iter().map(|r| r.unwrap()).collect();
 
         // ── Step 5: merge downstream + upstream ────────────────────
         let mut model_profiles: Vec<WallPoints> = Vec::with_capacity(n_theta);

@@ -99,8 +99,11 @@ fn enforce_monotonic_x(mut pts: WallPoints) -> WallPoints {
     }
     let mut kept: WallPoints = Vec::with_capacity(pts.len());
     kept.push(pts[0]);
+    // SAFETY: kept always has at least one element.
+    let mut last_x = pts[0].x;
     for pt in pts.drain(1..) {
-        if pt.x > kept.last().unwrap().x {
+        if pt.x > last_x {
+            last_x = pt.x;
             kept.push(pt);
         }
     }
