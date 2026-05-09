@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process};
 
-use aero::moc::{read_charlines_from_file_checked, CharLines};
+use aero::moc::{CharLines, read_charlines_from_file_checked};
 use aero::streamline_trace::{StreamlineConfig, StreamlineTrace};
 use clap::Parser;
 use geometry::obj::ObjModel;
@@ -153,7 +153,9 @@ fn build_shape(
                 .radius
                 .ok_or("circle shape requires 'radius'")?
                 / factor;
-            Ok(Box::new(Circle::new(r, center).map_err(|e| format!("Circle: {e}"))?))
+            Ok(Box::new(
+                Circle::new(r, center).map_err(|e| format!("Circle: {e}"))?,
+            ))
         }
         "ellipse" => {
             let a = shape_config.a.ok_or("ellipse shape requires 'a'")? / factor;
@@ -162,7 +164,9 @@ fn build_shape(
                 .alpha
                 .map(|deg| deg.to_radians())
                 .unwrap_or(0.0);
-            Ok(Box::new(Ellipse::new(a, b, alpha, center).map_err(|e| format!("Ellipse: {e}"))?))
+            Ok(Box::new(
+                Ellipse::new(a, b, alpha, center).map_err(|e| format!("Ellipse: {e}"))?,
+            ))
         }
         "rectangular" => {
             let length = shape_config
@@ -177,14 +181,23 @@ fn build_shape(
                 .alpha
                 .map(|deg| deg.to_radians())
                 .unwrap_or(0.0);
-            Ok(Box::new(Rectangular::new(length, width, alpha, center).map_err(|e| format!("Rectangular: {e}"))?))
+            Ok(Box::new(
+                Rectangular::new(length, width, alpha, center)
+                    .map_err(|e| format!("Rectangular: {e}"))?,
+            ))
         }
         "superellipse" => {
             let a = shape_config.a.ok_or("superellipse shape requires 'a'")? / factor;
             let b = shape_config.b.ok_or("superellipse shape requires 'b'")? / factor;
             let power = shape_config.n.unwrap_or(2.0);
-            let alpha = shape_config.alpha.map(|deg| deg.to_radians()).unwrap_or(0.0);
-            Ok(Box::new(SuperEllipse::new(a, b, power, alpha, center).map_err(|e| format!("SuperEllipse: {e}"))?))
+            let alpha = shape_config
+                .alpha
+                .map(|deg| deg.to_radians())
+                .unwrap_or(0.0);
+            Ok(Box::new(
+                SuperEllipse::new(a, b, power, alpha, center)
+                    .map_err(|e| format!("SuperEllipse: {e}"))?,
+            ))
         }
         "userdefined" => {
             let ds = shape_config
@@ -206,7 +219,10 @@ fn build_shape(
                 .alpha
                 .map(|deg| deg.to_radians())
                 .unwrap_or(0.0);
-            Ok(Box::new(UserDefined::new(pts, alpha, Some(center)).map_err(|e| format!("UserDefined: {e}"))?))
+            Ok(Box::new(
+                UserDefined::new(pts, alpha, Some(center))
+                    .map_err(|e| format!("UserDefined: {e}"))?,
+            ))
         }
         other => Err(format!(
             "unknown shape '{}'. Supported: circle, ellipse, rectangular, superellipse, userdefined",

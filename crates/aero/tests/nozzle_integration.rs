@@ -3,8 +3,8 @@
 /// 这些测试运行完整的喷管特征线法计算流程，耗时较长。
 /// 仅验证最终输出（点有效性、出口长度），不测试内部状态。
 use aero::{
-    nozzle::{ConstraintNozzle, Control, Geometry, Inlet, NozzleConfig, Outlet, Throat, IO},
     Material,
+    nozzle::{ConstraintNozzle, Control, Geometry, IO, Inlet, NozzleConfig, Outlet, Throat},
 };
 
 /// 自动选择初始膨胀角，验证完整喷管流程。

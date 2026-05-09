@@ -3,8 +3,8 @@ use std::f64::consts::PI;
 use crate::basics::sgn;
 use crate::closed_curve::ClosedCurve;
 use crate::point::Point3d;
-use math::rootfinding::secant;
 use math::Tolerance;
+use math::rootfinding::secant;
 
 /// A super-ellipse (Lamé curve) cross-section.
 ///

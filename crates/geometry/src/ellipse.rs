@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use crate::closed_curve::ClosedCurve;
 use crate::point::Point3d;
-use math::rootfinding::secant;
 use math::Tolerance;
+use math::rootfinding::secant;
 
 /// An elliptical cross-section with semi-major axis `a`, semi-minor axis
 /// `b`, rotation `alpha` (radians), and center offset `(x0, y0)`.
