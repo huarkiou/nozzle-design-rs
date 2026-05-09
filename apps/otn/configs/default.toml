@@ -5,11 +5,11 @@ irrotational = true
 # false代表二维平面问题，true代表二维轴对称问题
 axisymmetric = true
 # 残差小于eps视为相等/收敛
-eps = 1e-6
+eps = 1e-5
 # 欧拉预估校正迭代的最大校正次数
-n_correction_max = 40
+n_correction_max = 20
 # 入口边界划分网格点数 《===若计算发散可增大此参数重新尝试
-n_inlet = 101
+n_inlet = 61
 
 ###### 几何约束 ######
 [Geometry]
