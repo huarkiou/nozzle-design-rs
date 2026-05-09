@@ -2,16 +2,12 @@ use std::{path::PathBuf, process};
 
 use aero::moc::{read_charlines_from_file_checked, CharLines};
 use aero::streamline_trace::{StreamlineConfig, StreamlineTrace};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use geometry::obj::ObjModel;
 use geometry::wallpoints::write_boundaries;
 use geometry::{Circle, ClosedCurve, Ellipse, Rectangular, SuperEllipse, UserDefined};
 
 /// 3D streamline tracing nozzle design.
-///
-/// Reads a MOC base flow field (characteristic lines) and
-/// inlet/outlet cross-section shapes, traces streamlines through the
-/// field, and exports the resulting 3D nozzle geometry.
 #[derive(Parser)]
 #[command(
     name = "sltn",
@@ -19,18 +15,23 @@ use geometry::{Circle, ClosedCurve, Ellipse, Rectangular, SuperEllipse, UserDefi
     about = "3D streamline tracing nozzle design using MOC base flow field"
 )]
 struct Cli {
-    /// TOML configuration file
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// TOML configuration file (used when no subcommand)
     #[arg(default_value = "sltn.toml")]
     configfile: PathBuf,
+}
 
-    /// Generate a default configuration file and exit
-    #[arg(long)]
-    generate_config: bool,
+#[derive(Subcommand)]
+enum Command {
+    /// Generate a default sltn.toml and exit
+    Init,
 }
 
 fn main() {
     let cli = Cli::parse();
-    if cli.generate_config {
+    if matches!(cli.command, Some(Command::Init)) {
         if let Err(e) = generate_default_config(&cli.configfile) {
             eprintln!("Error: {e}");
             process::exit(1);

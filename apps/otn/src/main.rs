@@ -6,7 +6,7 @@ use std::{
     process,
 };
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use math::geometry::Coord2d;
 
 use aero::{
@@ -22,18 +22,23 @@ use aero::{
     about = "Generate optimal thrust nozzle (OTN) using Method of Characteristics (MOC)."
 )]
 struct Cli {
-    /// TOML configuration file
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// TOML configuration file (used when no subcommand)
     #[arg(default_value = "otn.toml")]
     configfile: PathBuf,
+}
 
-    /// Generate a default configuration file and exit
-    #[arg(long)]
-    generate_config: bool,
+#[derive(Subcommand)]
+enum Command {
+    /// Generate a default otn.toml and exit
+    Init,
 }
 
 fn main() {
     let cli = Cli::parse();
-    if cli.generate_config {
+    if matches!(cli.command, Some(Command::Init)) {
         if let Err(e) = generate_default_config(&cli.configfile) {
             eprintln!("Error: {e}");
             process::exit(1);
