@@ -5,6 +5,49 @@ use super::intersect::calculate_streamline_intersection;
 
 const DBG_STR_LOG: bool = false;
 
+/// Abstract access to an ordered collection of characteristic lines.
+/// Enables zero‑copy reversed traversal without cloning.
+pub trait CharLineSource {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn get_line(&self, i: usize) -> Option<&CharLine>;
+}
+
+// Forward implementation for CharLines (wraps Vec<CharLine>).
+impl CharLineSource for CharLines {
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+    fn get_line(&self, i: usize) -> Option<&CharLine> {
+        (**self).get(i)
+    }
+}
+
+/// Zero‑copy reversed view of `CharLines`.
+pub struct RevCharLines<'a>(&'a CharLines);
+
+impl<'a> RevCharLines<'a> {
+    pub fn new(lines: &'a CharLines) -> Self {
+        Self(lines)
+    }
+}
+
+impl<'a> CharLineSource for RevCharLines<'a> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get_line(&self, i: usize) -> Option<&CharLine> {
+        let n = self.0.len();
+        if i < n {
+            Some(&self.0[n - 1 - i])
+        } else {
+            None
+        }
+    }
+}
+
 /// Trace a single streamline from `start_point` through the given
 /// characteristic lines.
 ///
@@ -25,7 +68,7 @@ const DBG_STR_LOG: bool = false;
 /// end), or `None` if tracing fails at the very first step.
 pub fn trace_streamline(
     start_point: &Point3d,
-    datasource: &CharLines,
+    datasource: &dyn CharLineSource,
     x_positive: bool,
     axisymmetric: bool,
 ) -> Option<WallPoints> {
@@ -35,7 +78,7 @@ pub fn trace_streamline(
     }
 
     // ── step 1: bootstrap from the first characteristic line ──────
-    let first_line = &datasource[0];
+    let first_line = datasource.get_line(0)?;
     if first_line.len() < 2 {
         return None;
     }
@@ -57,7 +100,10 @@ pub fn trace_streamline(
 
     // ── step 2: march through the remaining characteristic lines ──
     let mut prev_seg_idx: usize = 0;
-    for (line_idx, line) in datasource.iter().enumerate().skip(1) {
+    for line_idx in 1..datasource.len() {
+        let Some(line) = datasource.get_line(line_idx) else {
+            continue;
+        };
         if line.len() < 2 {
             continue;
         }

@@ -11,6 +11,8 @@ use crate::moc::CharLines;
 use geometry::wallpoints::{interpolate_points_theta, refine_or_coarsen_boundaries};
 use geometry::{ClosedCurve, Point3d, WallPoints};
 
+pub use trace::{CharLineSource, RevCharLines};
+
 // ── error type ─────────────────────────────────────────────────
 
 /// Errors that can occur during streamline tracing.
@@ -175,11 +177,7 @@ impl StreamlineTrace {
         let matched_outlet = interpolate_points_theta(&inlet_points_raw, &outlet_points_raw);
 
         // ── Step 3+4: parallel downstream & upstream tracing ─────────
-        let mut reversed_outlet = CharLines::with_capacity(self.config.datasource_outlet.len());
-        for line in self.config.datasource_outlet.iter().rev() {
-            reversed_outlet.push(line.clone());
-        }
-
+        let rev_outlet = RevCharLines::new(&self.config.datasource_outlet);
         let axisymmetric = self.config.axisymmetric;
 
         // Collect failures instead of bailing on first error.
@@ -206,9 +204,8 @@ impl StreamlineTrace {
                     .par_iter()
                     .map(|pt| {
                         let r0 = if axisymmetric { pt.x.hypot(pt.y) } else { pt.y };
-                        let mut wp =
-                            trace::trace_streamline(pt, &reversed_outlet, false, axisymmetric)
-                                .ok_or((pt.x, pt.y))?;
+                        let mut wp = trace::trace_streamline(pt, &rev_outlet, false, axisymmetric)
+                            .ok_or((pt.x, pt.y))?;
                         wp.reverse();
                         Ok(transform_to_3d(wp, pt, r0, axisymmetric))
                     })

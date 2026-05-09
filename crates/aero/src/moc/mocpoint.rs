@@ -126,7 +126,7 @@ impl MocPoint {
 
     /// 气流方向 单位：rad
     pub fn flow_direction(&self) -> f64 {
-        (self.v / self.u).atan()
+        self.v.atan2(self.u)
     }
 
     /// 计算声速平方c^2 单位：(m/s)^2
