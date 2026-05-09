@@ -10,6 +10,7 @@ dependencies = [
  "geometry",
  "math",
  "nalgebra",
+ "rayon",
  "serde",
  "serde_json",
  "toml",

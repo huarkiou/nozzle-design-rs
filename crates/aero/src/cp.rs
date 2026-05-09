@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[derive(Clone)]
 pub enum Cp {
     Constant(f64),
-    Variable(Arc<dyn Fn(f64) -> f64>),
+    Variable(Arc<dyn Fn(f64) -> f64 + Send + Sync>),
 }
 
 impl PartialEq for Cp {
@@ -20,7 +20,7 @@ impl PartialEq for Cp {
 }
 
 impl Cp {
-    pub fn new(cp: impl Fn(f64) -> f64 + 'static) -> Self {
+    pub fn new(cp: impl Fn(f64) -> f64 + Send + Sync + 'static) -> Self {
         Self::Variable(Arc::new(cp))
     }
 

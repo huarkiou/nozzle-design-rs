@@ -40,7 +40,7 @@ impl Material {
     /// # 参数
     /// - `molecular_weight`: 摩尔质量(单位kg/kmol) 注意此处不是国际单位制
     /// - `cp`: 定压比热容(单位J/(kg·K))关于温度T(单位K)的函数
-    pub fn new(molecular_weight: f64, cp: impl Fn(f64) -> f64 + 'static) -> Self {
+    pub fn new(molecular_weight: f64, cp: impl Fn(f64) -> f64 + Send + Sync + 'static) -> Self {
         Self {
             molecular_weight,
             cp: (Cp::new(cp)),

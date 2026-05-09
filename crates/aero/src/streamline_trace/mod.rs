@@ -3,6 +3,8 @@ mod merge;
 mod trace;
 mod weight;
 
+use rayon::prelude::*;
+
 use crate::moc::CharLines;
 use geometry::wallpoints::{interpolate_points_theta, refine_or_coarsen_boundaries};
 use geometry::{ClosedCurve, Point3d, WallPoints};
@@ -110,52 +112,51 @@ impl StreamlineTrace {
         // Interpolate outlet points to the same theta values as inlet.
         let matched_outlet = interpolate_points_theta(&inlet_points_raw, &outlet_points_raw);
 
-        // ── Step 3: downstream tracing (inlet → outlet) ────────────
-        let mut downstream_profiles: Vec<WallPoints> = Vec::with_capacity(n_theta);
-        for (_i, pt) in inlet_points_raw.iter().enumerate() {
-            let r0 = pt.x.hypot(pt.y); // radial distance from symmetry axis
-            match trace::trace_streamline(pt, &self.config.datasource_inlet, true) {
-                Some(wp) => {
-                    let wp3d = transform_to_3d(&wp, pt, r0);
-                    downstream_profiles.push(wp3d);
-                }
-                None => {
-                    return Err(format!(
-                        "Downstream trace failed for inlet point ({:.4}, {:.4})",
-                        pt.x, pt.y
-                    ));
-                }
-            }
-        }
-
-        // ── Step 4: upstream tracing (outlet → inlet) ──────────────
-        // Reverse the order of characteristic lines: outlet becomes
-        // first, inlet becomes last.  Do NOT reverse individual line
-        // point order nor negate velocities — the flow direction is
-        // still from inlet→outlet; we rely on x_positive=false to
-        // enforce backward marching.
+        // ── Step 3+4: parallel downstream & upstream tracing ─────────
+        // Both directions are independent — run them concurrently.
         let mut reversed_outlet = CharLines::with_capacity(self.config.datasource_outlet.len());
         for line in self.config.datasource_outlet.iter().rev() {
             reversed_outlet.push(line.clone());
         }
 
-        let mut upstream_profiles: Vec<WallPoints> = Vec::with_capacity(n_theta);
-        for (_i, pt) in matched_outlet.iter().enumerate() {
-            let r0 = pt.x.hypot(pt.y);
-            match trace::trace_streamline(pt, &reversed_outlet, false) {
-                Some(mut wp) => {
-                    wp.reverse(); // inlet→outlet ordering
-                    let wp3d = transform_to_3d(&wp, pt, r0);
-                    upstream_profiles.push(wp3d);
-                }
-                None => {
-                    return Err(format!(
-                        "Upstream trace failed for outlet point ({:.4}, {:.4})",
-                        pt.x, pt.y
-                    ));
-                }
-            }
-        }
+        let (downstream_result, upstream_result) = rayon::join(
+            || -> Result<Vec<WallPoints>, String> {
+                inlet_points_raw
+                    .par_iter()
+                    .map(|pt| {
+                        let r0 = pt.x.hypot(pt.y);
+                        let wp = trace::trace_streamline(pt, &self.config.datasource_inlet, true)
+                            .ok_or_else(|| {
+                            format!(
+                                "Downstream trace failed for inlet point ({:.4}, {:.4})",
+                                pt.x, pt.y
+                            )
+                        })?;
+                        Ok(transform_to_3d(wp, pt, r0))
+                    })
+                    .collect()
+            },
+            || -> Result<Vec<WallPoints>, String> {
+                matched_outlet
+                    .par_iter()
+                    .map(|pt| {
+                        let r0 = pt.x.hypot(pt.y);
+                        let mut wp = trace::trace_streamline(pt, &reversed_outlet, false)
+                            .ok_or_else(|| {
+                                format!(
+                                    "Upstream trace failed for outlet point ({:.4}, {:.4})",
+                                    pt.x, pt.y
+                                )
+                            })?;
+                        wp.reverse();
+                        Ok(transform_to_3d(wp, pt, r0))
+                    })
+                    .collect()
+            },
+        );
+
+        let downstream_profiles = downstream_result?;
+        let upstream_profiles = upstream_result?;
 
         // ── Step 5: merge downstream + upstream ────────────────────
         let mut model_profiles: Vec<WallPoints> = Vec::with_capacity(n_theta);
@@ -200,20 +201,20 @@ impl StreamlineTrace {
 ///
 /// If `r0 ≈ 0` the point sits on the symmetry axis and the 3D
 /// coordinates collapse to `(x_f, 0, 0)`.
-fn transform_to_3d(streamline: &WallPoints, origin: &Point3d, r0: f64) -> WallPoints {
+fn transform_to_3d(mut streamline: WallPoints, origin: &Point3d, r0: f64) -> WallPoints {
     if r0 < 1e-15 {
-        return streamline
-            .iter()
-            .map(|p| Point3d::new(p.x, 0.0, 0.0))
-            .collect();
+        for p in &mut streamline {
+            p.y = 0.0;
+            p.z = 0.0;
+        }
+        return streamline;
     }
     let zs = origin.x; // spatial (shape z → 3D y)
     let ys = origin.y; // vertical  (shape y → 3D z)
+    for p in &mut streamline {
+        let rf = p.y; // radial position from flow field
+        p.y = rf * zs / r0;
+        p.z = rf * ys / r0;
+    }
     streamline
-        .iter()
-        .map(|p| {
-            let rf = p.y; // radial position from flow field
-            Point3d::new(p.x, rf * zs / r0, rf * ys / r0)
-        })
-        .collect()
 }

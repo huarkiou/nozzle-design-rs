@@ -35,12 +35,20 @@ pub fn calculate_streamline_intersection(
     i: usize,
     x_positive: bool,
 ) -> Option<MocPoint> {
-    // ── guard: valid segment ──────────────────────────────────────
+    // ── guard: valid segment ──
     if i + 1 >= line.len() {
         return None;
     }
     let p_a = &line[i];
     let p_b = &line[i + 1];
+
+    // ── quick direction cull ──
+    if x_positive && p_b.x < p_prev.x {
+        return None;
+    }
+    if !x_positive && p_a.x > p_prev.x {
+        return None;
+    }
 
     let dx_line = p_b.x - p_a.x;
     let dy_line = p_b.y - p_a.y;
@@ -50,37 +58,26 @@ pub fn calculate_streamline_intersection(
         return None;
     }
 
-    // ── initial slope estimate ────────────────────────────────────
+    // ── initial slope estimate ──
     let theta_prev = p_prev.flow_direction();
     let mut l14_old = theta_prev.tan();
 
     let mut x_old = f64::NAN;
     let mut y_old = f64::NAN;
-    let mut current_theta: f64;
 
     for _iter in 0..30 {
-        // ── char‑line segment slope ───────────────────────────────
+        // ── char‑line segment slope ──
         let l23 = if dx_line.abs() < 1e-14 {
-            // Vertical characteristic line
             f64::INFINITY
         } else {
             dy_line / dx_line
         };
 
-        // The two lines are:
-        //   streamline: y = l14 * (x - p_prev.x) + p_prev.y
-        //   char seg:   y = l23 * (x - p_a.x) + p_a.y
-        //
         // Solve: l14*(x - px) + py = l23*(x - ax) + ay
-        //   x*(l14 - l23) = l14*px - py - l23*ax + ay
-        //   x = (l14*px - py - l23*ax + ay) / (l14 - l23)
-
         let (x_new, y_new) =
-            if (l14_old - l23).abs() < 1e-14 || l23.is_infinite() && l14_old.is_infinite() {
-                // Near‑parallel → no unique intersection
+            if (l14_old - l23).abs() < 1e-14 || (l23.is_infinite() && l14_old.is_infinite()) {
                 return None;
             } else if dx_line.abs() < 1e-14 {
-                // Vertical characteristic line — x known
                 let x_int = p_a.x;
                 let y_int = l14_old * (x_int - p_prev.x) + p_prev.y;
                 (x_int, y_int)
@@ -95,22 +92,25 @@ pub fn calculate_streamline_intersection(
             return None;
         }
 
-        // ── convergence check ─────────────────────────────────────
+        // ── convergence check ──
         if _iter > 0 && (x_new - x_old).abs() < 1e-8 && (y_new - y_old).abs() < 1e-8 {
-            // Converged — return final interpolated point
-            let mut tmp = MocPoint::default();
-            tmp.x = x_new;
-            tmp.y = y_new;
-            let mut result = tmp.interpolate_along(p_a, p_b);
-            result.x = x_new;
-            result.y = y_new;
-            return Some(result);
+            let t = projection_param(x_new, y_new, p_a, p_b);
+            return Some(MocPoint {
+                x: x_new,
+                y: y_new,
+                u: p_a.u + t * (p_b.u - p_a.u),
+                v: p_a.v + t * (p_b.v - p_a.v),
+                p: p_a.p + t * (p_b.p - p_a.p),
+                t: p_a.t + t * (p_b.t - p_a.t),
+                rho: p_a.rho + t * (p_b.rho - p_a.rho),
+                mat: p_a.mat.clone(),
+            });
         }
 
         x_old = x_new;
         y_old = y_new;
 
-        // ── check intersection lies within segment bounds ──────────
+        // ── check intersection lies within segment bounds ──
         let eps = 1e-10;
         let (x_min, x_max) = if p_a.x <= p_b.x {
             (p_a.x - eps, p_b.x + eps)
@@ -127,7 +127,7 @@ pub fn calculate_streamline_intersection(
             return None;
         }
 
-        // ── direction check ────────────────────────────────────────
+        // ── direction check ──
         if x_positive && x_new < p_prev.x - eps {
             return None;
         }
@@ -135,21 +135,32 @@ pub fn calculate_streamline_intersection(
             return None;
         }
 
-        // ── interpolate flow parameters at (x_new, y_new) ──────────
-        let mut tmp = MocPoint::default();
-        tmp.x = x_new;
-        tmp.y = y_new;
-        let mut tmp = tmp.interpolate_along(p_a, p_b);
-        tmp.x = x_new;
-        tmp.y = y_new;
-        current_theta = tmp.flow_direction();
+        // ── lightweight UV-only interpolation for theta estimate ──
+        let t = projection_param(x_new, y_new, p_a, p_b);
+        let u_int = p_a.u + t * (p_b.u - p_a.u);
+        let v_int = p_a.v + t * (p_b.v - p_a.v);
+        let current_theta = (v_int / u_int).atan();
 
-        // ── update slope for next iteration ─────────────────────────
+        // ── update slope for next iteration ──
         l14_old = ((theta_prev + current_theta) / 2.0).tan();
     }
 
     // Exceeded max iterations without converging
     None
+}
+
+/// Compute the projection parameter t ∈ [0,1] for point (x,y) on
+/// segment p_a→p_b.  Used for both UV-only and full interpolation.
+#[inline]
+fn projection_param(x: f64, y: f64, p_a: &MocPoint, p_b: &MocPoint) -> f64 {
+    let dx = p_b.x - p_a.x;
+    let dy = p_b.y - p_a.y;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq == 0.0 {
+        0.0
+    } else {
+        ((x - p_a.x) * dx + (y - p_a.y) * dy) / len_sq
+    }
 }
 
 #[cfg(test)]

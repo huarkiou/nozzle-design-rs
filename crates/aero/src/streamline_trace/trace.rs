@@ -53,18 +53,20 @@ pub fn trace_streamline(
     points.push(Point3d::new(p_prev.x, p_prev.y, 0.0));
 
     // ── step 2: march through the remaining characteristic lines ──
+    let mut prev_seg_idx: usize = 0;
     for (line_idx, line) in datasource.iter().enumerate().skip(1) {
         if line.len() < 2 {
             continue;
         }
 
-        // Try each segment of the line; take the first valid intersection
+        // Start from the last-good segment (spatial coherence).
+        let start_seg = prev_seg_idx.min(line.len().saturating_sub(2));
         let mut found = false;
-        for seg in 0..(line.len() - 1) {
+
+        // Search forward from start_seg
+        for seg in start_seg..(line.len() - 1) {
             if let Some(next_pt) = calculate_streamline_intersection(&p_prev, line, seg, x_positive)
             {
-                // Skip duplicate positions (can happen when consecutive
-                // charlines overlap at the same axial station).
                 if (next_pt.x - p_prev.x).abs() < 1e-10 && (next_pt.y - p_prev.y).abs() < 1e-10 {
                     continue;
                 }
@@ -76,8 +78,34 @@ pub fn trace_streamline(
                 }
                 points.push(Point3d::new(next_pt.x, next_pt.y, 0.0));
                 p_prev = next_pt;
+                prev_seg_idx = seg;
                 found = true;
                 break;
+            }
+        }
+
+        // Fallback: search from 0 to start_seg
+        if !found && start_seg > 0 {
+            for seg in 0..start_seg.min(line.len() - 1) {
+                if let Some(next_pt) =
+                    calculate_streamline_intersection(&p_prev, line, seg, x_positive)
+                {
+                    if (next_pt.x - p_prev.x).abs() < 1e-10 && (next_pt.y - p_prev.y).abs() < 1e-10
+                    {
+                        continue;
+                    }
+                    if DBG_STR_LOG {
+                        eprintln!(
+                            "    line {} seg {} (fallback) -> ({:.6}, {:.6})",
+                            line_idx, seg, next_pt.x, next_pt.y
+                        );
+                    }
+                    points.push(Point3d::new(next_pt.x, next_pt.y, 0.0));
+                    p_prev = next_pt;
+                    prev_seg_idx = seg;
+                    found = true;
+                    break;
+                }
             }
         }
 
@@ -88,9 +116,6 @@ pub fn trace_streamline(
                     line_idx, p_prev.x, p_prev.y
                 );
             }
-            // Skip this characteristic line — it may be a partial line
-            // that does not span the radial position of this streamline.
-            // Continue to the next line.
             continue;
         }
     }
