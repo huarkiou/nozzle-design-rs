@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/math", "crates/aero", "apps/optimumnozzle"]
+members = ["crates/math", "crates/aero", "crates/geometry", "apps/optimumnozzle", "apps/streamlinetracenozzle"]
 
 [profile.release]
 lto = "thin"

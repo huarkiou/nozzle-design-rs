@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+geometry = { path = "../geometry" }
 math = { path = "../math" }
 nalgebra = "0.34"
 serde = { version = "1.0", features = ["derive"] }

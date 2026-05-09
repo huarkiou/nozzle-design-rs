@@ -1,0 +1,13 @@
+[package]
+name = "streamlinetracenozzle"
+version = "0.1.0"
+edition = "2024"
+description = "3D streamline tracing nozzle design using MOC base flow field"
+
+[dependencies]
+aero = { path = "../../crates/aero" }
+geometry = { path = "../../crates/geometry" }
+math = { path = "../../crates/math" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"

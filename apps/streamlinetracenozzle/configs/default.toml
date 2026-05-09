@@ -1,0 +1,114 @@
+###### 控制参数 ######
+[Control]
+# 离散网格点数
+n_theta = 66
+n_axis = 111
+# 型面融合过渡时变化不单调的区域是否抹平
+monotonic = false
+# 型面融合过渡权函数控制参数a
+# a = 0 为 f(x) = x，
+# a > 0 为 f(x) = arctan((2 * x - 1) * a) / arctan(a) / 2. + 0.5，
+# a < 0 为 f(x) = (tan(arctan(a) * (2 * x - 1)) / a + 1) / 2.
+weight_parameter_a = 0
+# 是否导入wavefront .obj文件用于预览
+export_obj = false
+
+###### 基准流场参数 ######
+[BaseFluidField]
+# 基准流场类型：平面or轴对称
+axisymmetric = true
+# 顺流向追踪使用的轴对称基准流场数据文件
+datasource_inlet = './field_data.txt'
+# 逆流向追踪使用的轴对称基准流场数据文件
+datasource_outlet = './field_data.txt'
+
+###### 进口截面参数 ######
+[Inlet]
+# 定义截面形状
+normalized = true
+shape = 'circle'
+center = [0, 0.2]
+radius = 0.8
+
+###### 出口截面参数 ######
+[Outlet]
+# 定义截面形状
+normalized = true
+shape = 'ellipse'
+center = [0, 0.2]
+a = 0.6
+b = 0.8
+alpha = 0
+
+
+############ 截面形状参数设置模板(以下均会被忽略，对程序无影响，仅用作模板便于直接复制上去用) ############
+###### 圆形 ######
+[Templates.circle]
+# 是否用基准流场的进/出口截面高度对坐标进行标准化到单位圆内(若为false，则后续长度单位均为m，默认为true)
+normalized = true
+# 形状
+shape = 'circle'
+# 圆心坐标(z,y)
+center = [0, 0.25]
+# 圆的半径
+radius = 0.3
+
+###### 椭圆形 ######
+[Templates.ellipse]
+# 是否用基准流场的进/出口截面高度对坐标进行标准化到单位圆内(若为false，则后续长度单位均为m，默认为true)
+normalized = true
+# 形状
+shape = 'ellipse'
+# 中心坐标(z,y)
+center = [0, 0.25]
+# 长半轴长z
+a = 0.3
+# 短半轴长y
+b = 0.2
+# 旋转角(长轴与θ=0轴的夹角)/°
+alpha = 0
+
+###### 矩形 ######
+[Templates.rectangular]
+# 是否用基准流场的进/出口截面高度对坐标进行标准化到单位圆内(若为false，则后续长度单位均为m，默认为true)
+normalized = true
+# 形状
+shape = 'rectangular'
+# 中心坐标(z,y)
+center = [0, 0.25]
+# 长z
+length = 0.2
+# 宽y
+width = 0.2
+# 旋转角(长与θ=0轴的夹角)/°
+alpha = 0
+
+###### 超椭圆 ######
+[Templates.superellipse]
+# 是否用基准流场的进/出口截面高度对坐标进行标准化到单位圆内(若为false，则后续长度单位均为m，默认为true)
+normalized = true
+# 形状
+shape = 'superellipse'
+# 中心坐标(z,y)
+center = [0, 0.25]
+# 长半轴长z
+a = 0.3
+# 短半轴长y
+b = 0.2
+# 旋转角(长轴与θ=0轴的夹角)/°
+alpha = 0
+# 幂次(n<2时，超椭圆也称为次椭圆，形状类似菱形；n=2时，超椭圆形状即椭圆；n>2时，称为过椭圆，形状为四角有圆角的矩形；n->∞时，超椭圆形状即为矩形)
+n = 2
+
+###### 自定义 ######
+[Templates.userdefined]
+# 是否用基准流场的进/出口截面高度对坐标进行标准化到单位圆内(若为false，则后续长度单位均为m，默认为true)
+normalized = true
+# 形状
+shape = 'userdefined'
+# 存放描述该自定义形状坐标(最好为凸曲线否则不能保证成功)的文本文件，每行一个二维坐标值以空格分隔，第一列为z坐标，第二列为y坐标
+datasource = './shapepoints.txt'
+# 旋转角(长与θ=0轴的夹角)/°
+alpha = 0
+# 中心坐标(z,y) （*可选*：若不指定中心，则将自动计算所有点的形心作为中心）
+center = [0, 0.25]

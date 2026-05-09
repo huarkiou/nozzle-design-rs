@@ -1,0 +1,13 @@
+[package]
+name = "geometry"
+version = "0.1.0"
+edition = "2024"
+description = "3D geometry primitives for nozzle design"
+
+[dependencies]
+math = { path = "../math" }
+nalgebra = "0.34"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+default = ["serde"]

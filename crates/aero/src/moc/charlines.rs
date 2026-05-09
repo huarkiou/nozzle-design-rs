@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    Material,
     moc::{CharLine, MocPoint},
+    Material,
 };
 
 #[derive(Clone)]
@@ -66,7 +66,7 @@ impl CharLines {
             .create(true); // 不存在则创建
         if append {
             options.append(true); // 追加模式（隐含 write）
-            // 注意：append 模式下 truncate 会被忽略，但显式设为 false 更安全
+                                  // 注意：append 模式下 truncate 会被忽略，但显式设为 false 更安全
             options.truncate(false);
         } else {
             options.truncate(true); // 覆盖写入：先清空
@@ -78,7 +78,19 @@ impl CharLines {
 
         for line in &self.data {
             for point in line.iter() {
-                writeln!(writer, "{:.9}", point)?;
+                writeln!(
+                    writer,
+                    "{:.9} {:.9} {:.9} {:.9} {:.9} {:.9} {:.9} {:.9} {:.9}",
+                    point.x,
+                    point.y,
+                    point.velocity(),
+                    point.flow_direction(),
+                    point.p,
+                    point.rho,
+                    point.t,
+                    point.rg(),
+                    point.gamma(point.t),
+                )?;
             }
             writeln!(writer)?;
         }
@@ -126,7 +138,10 @@ pub fn read_charlines_from_file<P: AsRef<Path>>(filepath: P) -> std::io::Result<
             continue;
         }
 
-        let values: Result<Vec<f64>, _> = line.split_whitespace().map(str::parse::<f64>).collect();
+        let values: Result<Vec<f64>, _> = line
+            .split_whitespace()
+            .map(|s| s.trim_matches(',').parse::<f64>())
+            .collect();
 
         match values {
             Ok(vals) => {
