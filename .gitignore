@@ -1,6 +1,6 @@
 .vscode
 .venv
-.omo
+.sisyphus
 /target
 
 # OptimumNozzle generated output
