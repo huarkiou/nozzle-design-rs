@@ -62,8 +62,10 @@ impl ObjModel {
         for i in 0..n_profiles.saturating_sub(1) {
             let base_i = i * n_theta;
             let base_ip1 = (i + 1) * n_theta;
-            for j in 0..n_theta {
-                let j_next = (j + 1) % n_theta;
+            // No wrap-around: streamlines are open curves along the axis.
+            // Each profile is an open polyline, not a closed loop.
+            for j in 0..(n_theta - 1) {
+                let j_next = j + 1;
 
                 // 0-based vertex indices
                 let ai = base_i + j;
@@ -71,13 +73,13 @@ impl ObjModel {
                 let ci = base_ip1 + j_next;
                 let di = base_ip1 + j;
 
-                // Triangle 1: a, b, c
-                if triangle_area(&vertices[ai], &vertices[bi], &vertices[ci]) > degenerate_eps {
-                    faces.push([ai + 1, bi + 1, ci + 1]);
+                // Triangle 1: a, c, b (counter-clockwise winding for outward normals)
+                if triangle_area(&vertices[ai], &vertices[ci], &vertices[bi]) > degenerate_eps {
+                    faces.push([ai + 1, ci + 1, bi + 1]);
                 }
-                // Triangle 2: a, c, d
-                if triangle_area(&vertices[ai], &vertices[ci], &vertices[di]) > degenerate_eps {
-                    faces.push([ai + 1, ci + 1, di + 1]);
+                // Triangle 2: a, d, c
+                if triangle_area(&vertices[ai], &vertices[di], &vertices[ci]) > degenerate_eps {
+                    faces.push([ai + 1, di + 1, ci + 1]);
                 }
             }
         }
@@ -284,35 +286,36 @@ mod tests {
 
     #[test]
     fn test_two_profiles_quad() {
-        // Two profiles with 4 points each → 4 quads → 8 triangles.
+        // Two profiles with 5 points each (closed by repeating first point).
+        // 5 points × 2 profiles = 10 vertices → 4 quads × 2 triangles = 8 faces.
         let profile0 = vec![
-            Point3d::new(0.0, 0.0, 0.0),
-            Point3d::new(1.0, 0.0, 0.0),
-            Point3d::new(1.0, 1.0, 0.0),
-            Point3d::new(0.0, 1.0, 0.0),
+            Point3d::new(0.0, 0.0, 0.0), // 1  -- first
+            Point3d::new(1.0, 0.0, 0.0), // 2
+            Point3d::new(1.0, 1.0, 0.0), // 3
+            Point3d::new(0.0, 1.0, 0.0), // 4
+            Point3d::new(0.0, 0.0, 0.0), // 5  -- closed (same as first)
         ];
         let profile1 = vec![
-            Point3d::new(0.0, 0.0, 1.0),
-            Point3d::new(1.0, 0.0, 1.0),
-            Point3d::new(1.0, 1.0, 1.0),
-            Point3d::new(0.0, 1.0, 1.0),
+            Point3d::new(0.0, 0.0, 1.0), // 6
+            Point3d::new(1.0, 0.0, 1.0), // 7
+            Point3d::new(1.0, 1.0, 1.0), // 8
+            Point3d::new(0.0, 1.0, 1.0), // 9
+            Point3d::new(0.0, 0.0, 1.0), // 10 -- closed
         ];
         let m = ObjModel::from_wallpoints(&[profile0, profile1]);
-        assert_eq!(m.vertices.len(), 8);
+        assert_eq!(m.vertices.len(), 10);
         assert_eq!(m.faces.len(), 8); // 4 quads × 2 triangles
-        assert_eq!(m.normals.len(), 8);
+        assert_eq!(m.normals.len(), 10);
 
-        // Check 1-based indexing on first face
+        // Check 1-based indexing on first face (j=0: a=1, c=7, b=2)
         let first_face = m.faces[0];
-        assert!(first_face[0] >= 1 && first_face[0] <= 8);
-        assert!(first_face[1] >= 1 && first_face[1] <= 8);
-        assert!(first_face[2] >= 1 && first_face[2] <= 8);
+        assert!(first_face[0] >= 1 && first_face[0] <= 10);
+        assert!(first_face[1] >= 1 && first_face[1] <= 10);
+        assert!(first_face[2] >= 1 && first_face[2] <= 10);
 
-        // Verify the specific triangle pattern for j=0
-        // p0[0]=idx1, p0[1]=idx2, p1[1]=idx6 → triangle [1,2,6]
-        // p0[0]=idx1, p1[1]=idx6, p1[0]=idx5 → triangle [1,6,5]
-        assert_eq!(m.faces[0], [1, 2, 6]);
-        assert_eq!(m.faces[1], [1, 6, 5]);
+        // j=0: triangle a,c,b = (1,7,2), triangle a,d,c = (1,6,7)
+        assert_eq!(m.faces[0], [1, 7, 2]);
+        assert_eq!(m.faces[1], [1, 6, 7]);
     }
 
     #[test]

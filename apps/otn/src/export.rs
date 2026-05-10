@@ -51,10 +51,10 @@ pub fn export_boundary_geometry(
         &mut w,
         wall_points[1..n - 1].iter().map(|p| (p.x, p.y, 0.0)),
     )?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 2. sj_wall_d: lower wall (axis)
     write_segment(&mut w, [(inlet_x, 0.0, 0.0), (exit_x, 0.0, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 3. sj_inlet
     write_segment(
         &mut w,
@@ -64,25 +64,25 @@ pub fn export_boundary_geometry(
             (inlet_wall.x, inlet_wall.y, 0.0),
         ],
     )?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 4. sj_throatu
     write_segment(
         &mut w,
         [(-y_t, y_t, 0.0), (inlet_wall.x, inlet_wall.y, 0.0)],
     )?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 5. sj_throatd
     write_segment(&mut w, [(-y_t, 0.0, 0.0), (inlet_wall.x, 0.0, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 6. sj_walld_d
     write_segment(&mut w, [(inlet_x, 0.0, 0.0), (x_bottom_right, 0.0, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 7. bottomleft_u
     write_segment(&mut w, [(x_left, y_t, 0.0), (x_left, y_max, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 8. bottomleft_in
     write_segment(&mut w, [(x_left, y_t, 0.0), (-y_t, y_t, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 9. bottom
     write_segment(
         &mut w,
@@ -92,16 +92,16 @@ pub fn export_boundary_geometry(
             (x_bottom_right, y_bottom, 0.0),
         ],
     )?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 10. right
     write_segment(&mut w, [(x_right, y_max, 0.0), (x_right, y_bottom, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 11. top
     write_segment(&mut w, [(x_left, y_max, 0.0), (x_right, y_max, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 12. topleft_in
     write_segment(&mut w, [(x_left, y_max, 0.0), (x_left, y_t, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 13. topleft_d
     write_segment(
         &mut w,
@@ -111,10 +111,10 @@ pub fn export_boundary_geometry(
             (x_left, y_bottom, 0.0),
         ],
     )?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 14. sj_walld_plus
     write_segment(&mut w, [(exit_x, 0.0, 0.0), (x_bottom_right, 0.0, 0.0)])?;
-    w.write_all(b"\n")?;
+    w.write_all(b"ROW\n")?;
     // 15. sj_outlet
     let exit_wall = wall_points[n - 1];
     write_segment(
