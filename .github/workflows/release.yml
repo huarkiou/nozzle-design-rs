@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.2.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build otn (release)
+        run: cargo build -p otn --release --target ${{ matrix.target }}
+
+      - name: Build sltn (release)
+        run: cargo build -p sltn --release --target ${{ matrix.target }}
+
+      - name: Package artifacts
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          TARGET="${{ matrix.target }}"
+          EXT="${{ matrix.ext }}"
+
+          if [ "${{ matrix.archive }}" = "tar.gz" ]; then
+            tar -czf "otn-${VERSION}-${TARGET}.tar.gz" -C target/$TARGET/release otn
+            tar -czf "sltn-${VERSION}-${TARGET}.tar.gz" -C target/$TARGET/release sltn
+          else
+            7z a "otn-${VERSION}-${TARGET}.zip" "target/$TARGET/release/otn${EXT}"
+            7z a "sltn-${VERSION}-${TARGET}.zip" "target/$TARGET/release/sltn${EXT}"
+          fi
+
+      - name: Upload artifact (otn)
+        uses: actions/upload-artifact@v4
+        with:
+          name: otn-${{ inputs.version }}-${{ matrix.target }}
+          path: otn-${{ inputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+
+      - name: Upload artifact (sltn)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sltn-${{ inputs.version }}-${{ matrix.target }}
+          path: sltn-${{ inputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ inputs.version }}-*"
+          merge-multiple: true
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          files: artifacts/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
