@@ -47,26 +47,19 @@ jobs:
           VERSION="${{ inputs.version }}"
           TARGET="${{ matrix.target }}"
           EXT="${{ matrix.ext }}"
+          NAME="nozzle-design-rs-${VERSION}-${TARGET}"
 
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
-            tar -czf "otn-${VERSION}-${TARGET}.tar.gz" -C target/$TARGET/release otn
-            tar -czf "sltn-${VERSION}-${TARGET}.tar.gz" -C target/$TARGET/release sltn
+            tar -czf "${NAME}.tar.gz" -C target/$TARGET/release otn sltn
           else
-            7z a "otn-${VERSION}-${TARGET}.zip" "target/$TARGET/release/otn${EXT}"
-            7z a "sltn-${VERSION}-${TARGET}.zip" "target/$TARGET/release/sltn${EXT}"
+            7z a "${NAME}.zip" "target/$TARGET/release/otn${EXT}" "target/$TARGET/release/sltn${EXT}"
           fi
 
-      - name: Upload artifact (otn)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: otn-${{ inputs.version }}-${{ matrix.target }}
-          path: otn-${{ inputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
-
-      - name: Upload artifact (sltn)
-        uses: actions/upload-artifact@v4
-        with:
-          name: sltn-${{ inputs.version }}-${{ matrix.target }}
-          path: sltn-${{ inputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          name: nozzle-design-rs-${{ inputs.version }}-${{ matrix.target }}
+          path: nozzle-design-rs-${{ inputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
 
   release:
     name: Create Release
