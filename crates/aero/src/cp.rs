@@ -23,25 +23,57 @@ impl PartialEq for Cp {
 
 /// 分段多项式的一个温度区间
 ///
-/// 多项式形式: `Cp(T) = c[0] + c[1]·T + c[2]·T² + … + c[n]·Tⁿ`
+/// 多项式形式:
+///   `Cp(T) = cp + c₁·T + c₂·T² + … + c₋₁·T⁻¹ + c₋₂·T⁻² + …`
 ///
-/// `coefficients` 数组长度 = 多项式次数 + 1，支持任意次数。
-/// 求值使用 Horner 方法以保证数值稳定性。
+/// - `cp` 为常数项（来自材料级定压比热容），不在本结构体中序列化
+/// - `pos_coefficients[0]` 对应 T¹ 系数，`pos_coefficients[1]` 对应 T²，以此类推
+/// - `neg_coefficients[0]` 对应 T⁻¹ 系数，`neg_coefficients[1]` 对应 T⁻²，以此类推
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CpSegment {
     /// 温度下界 (K)
     pub t_min: f64,
     /// 温度上界 (K)
     pub t_max: f64,
-    /// 多项式系数 [c0, c1, c2, …, cn]
+    /// 常数项 c₀（不参与序列化，由材料级 cp 构建时注入）
+    #[serde(skip, default)]
+    pub cp: f64,
+    /// 正次幂系数 [c1, c2, c3, …] 对应 T¹, T², T³, …
     #[serde(default)]
-    pub coefficients: Vec<f64>,
+    pub pos_coefficients: Vec<f64>,
+    /// 负次幂系数 [c₋₁, c₋₂, …] 对应 T⁻¹, T⁻², …
+    #[serde(default)]
+    pub neg_coefficients: Vec<f64>,
 }
 
 impl CpSegment {
-    /// Horner 法求值: c0 + t*(c1 + t*(c2 + … + t*cn))
+    /// 多项式求值:
+    ///   `result = cp + Σ(pos_i · T^(i+1)) + Σ(neg_i · T^-(i+1))`
+    ///
+    /// 若存在负次幂系数且 `t == 0.0`，返回 `f64::NAN`。
     pub fn eval(&self, t: f64) -> f64 {
-        self.coefficients.iter().rfold(0.0, |acc, &c| acc * t + c)
+        let mut result = self.cp;
+
+        // 正次幂部分: c1·T + c2·T² + c3·T³ + …
+        let mut t_pow = t;
+        for &c in &self.pos_coefficients {
+            result += c * t_pow;
+            t_pow *= t;
+        }
+
+        // 负次幂部分: c₋₁·T⁻¹ + c₋₂·T⁻² + …
+        if !self.neg_coefficients.is_empty() {
+            if t == 0.0 {
+                return f64::NAN;
+            }
+            let mut t_inv = 1.0 / t;
+            for &c in &self.neg_coefficients {
+                result += c * t_inv;
+                t_inv /= t;
+            }
+        }
+
+        result
     }
 }
 
@@ -245,14 +277,20 @@ mod tests {
 
     // ── 分段多项式测试 ────────────────────────────────────
 
+    fn seg(t_min: f64, t_max: f64, cp: f64, pos: Vec<f64>, neg: Vec<f64>) -> CpSegment {
+        CpSegment {
+            t_min,
+            t_max,
+            cp,
+            pos_coefficients: pos,
+            neg_coefficients: neg,
+        }
+    }
+
     #[test]
     fn test_segment_eval_linear() {
         // Cp(T) = 1000 + 0.2·T
-        let seg = CpSegment {
-            t_min: 200.0,
-            t_max: 1000.0,
-            coefficients: vec![1000.0, 0.2],
-        };
+        let seg = seg(200.0, 1000.0, 1000.0, vec![0.2], vec![]);
         assert!((seg.eval(300.0) - 1060.0).abs() < 1e-10);
         assert!((seg.eval(500.0) - 1100.0).abs() < 1e-10);
     }
@@ -260,11 +298,7 @@ mod tests {
     #[test]
     fn test_segment_eval_quadratic() {
         // Cp(T) = 1 + 2T + 3T²
-        let seg = CpSegment {
-            t_min: 100.0,
-            t_max: 500.0,
-            coefficients: vec![1.0, 2.0, 3.0],
-        };
+        let seg = seg(100.0, 500.0, 1.0, vec![2.0, 3.0], vec![]);
         let t = 10.0;
         let expected = 1.0 + 2.0 * t + 3.0 * t * t;
         assert!((seg.eval(t) - expected).abs() < 1e-10);
@@ -272,28 +306,48 @@ mod tests {
 
     #[test]
     fn test_segment_eval_constant_polynomial() {
-        // 常数多项式: Cp(T) = 500
-        let seg = CpSegment {
-            t_min: 0.0,
-            t_max: 1000.0,
-            coefficients: vec![500.0],
-        };
+        // 常数多项式: Cp(T) = 500（仅 cp 值，无多项式项）
+        let seg = seg(0.0, 1000.0, 500.0, vec![], vec![]);
         assert!((seg.eval(300.0) - 500.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_segment_eval_negative_powers_only() {
+        // Cp(T) = 100 + 200/T + 300/T²
+        let seg = seg(1.0, 1000.0, 100.0, vec![], vec![200.0, 300.0]);
+        let t = 10.0;
+        let expected = 100.0 + 200.0 / t + 300.0 / (t * t);
+        assert!((seg.eval(t) - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_segment_eval_combined_powers() {
+        // Cp(T) = 50 + 2T + 3T² + 100/T
+        let seg = seg(1.0, 1000.0, 50.0, vec![2.0, 3.0], vec![100.0]);
+        let t = 5.0;
+        let expected = 50.0 + 2.0 * t + 3.0 * t * t + 100.0 / t;
+        assert!((seg.eval(t) - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_segment_eval_negative_power_zero_temp() {
+        // T=0 且存在负次幂 → 返回 NaN
+        let seg = seg(0.0, 1000.0, 100.0, vec![], vec![1.0]);
+        assert!(seg.eval(0.0).is_nan());
+    }
+
+    #[test]
+    fn test_segment_eval_no_negative_zero_temp_ok() {
+        // T=0 但不含负次幂 → 正常求值
+        let seg = seg(0.0, 1000.0, 100.0, vec![1.0], vec![]);
+        assert!((seg.eval(0.0) - 100.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_piecewise_in_range() {
         let cp = Cp::from_piecewise_segments(vec![
-            CpSegment {
-                t_min: 200.0,
-                t_max: 1000.0,
-                coefficients: vec![1000.0, 0.2], // 1000 + 0.2·T
-            },
-            CpSegment {
-                t_min: 1000.0,
-                t_max: 3000.0,
-                coefficients: vec![800.0, 0.4], // 800 + 0.4·T
-            },
+            seg(200.0, 1000.0, 1000.0, vec![0.2], vec![]), // 1000 + 0.2·T
+            seg(1000.0, 3000.0, 800.0, vec![0.4], vec![]), // 800 + 0.4·T
         ]);
         // 第一段内
         let v = cp.eval(500.0);
@@ -308,11 +362,9 @@ mod tests {
 
     #[test]
     fn test_piecewise_below_range() {
-        let cp = Cp::from_piecewise_segments(vec![CpSegment {
-            t_min: 200.0,
-            t_max: 1000.0,
-            coefficients: vec![0.0, 1.0], // T
-        }]);
+        let cp = Cp::from_piecewise_segments(vec![
+            seg(200.0, 1000.0, 0.0, vec![1.0], vec![]), // T
+        ]);
         // 低于最低区间 → 取 t=200 的值
         assert!((cp.eval(100.0) - 200.0).abs() < 1e-10);
         assert!((cp.eval(0.0) - 200.0).abs() < 1e-10);
@@ -320,11 +372,9 @@ mod tests {
 
     #[test]
     fn test_piecewise_above_range() {
-        let cp = Cp::from_piecewise_segments(vec![CpSegment {
-            t_min: 200.0,
-            t_max: 1000.0,
-            coefficients: vec![0.0, 1.0], // T
-        }]);
+        let cp = Cp::from_piecewise_segments(vec![
+            seg(200.0, 1000.0, 0.0, vec![1.0], vec![]), // T
+        ]);
         // 高于最高区间 → 取 t=1000 的值
         assert!((cp.eval(1500.0) - 1000.0).abs() < 1e-10);
     }
@@ -337,14 +387,19 @@ mod tests {
 
     #[test]
     fn test_segment_eval_many_coefficients() {
-        // Cp(T) = 1 + 2T + 3T² + 4T³ + 5T⁴ (5次系数)
-        let seg = CpSegment {
-            t_min: 0.0,
-            t_max: 1000.0,
-            coefficients: vec![1.0, 2.0, 3.0, 4.0, 5.0],
-        };
+        // Cp(T) = 1 + 2T + 3T² + 4T³ + 5T⁴
+        let seg = seg(0.0, 1000.0, 1.0, vec![2.0, 3.0, 4.0, 5.0], vec![]);
         let t: f64 = 2.0;
         let expected = 1.0 + 2.0 * t + 3.0 * t.powi(2) + 4.0 * t.powi(3) + 5.0 * t.powi(4);
+        assert!((seg.eval(t) - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_segment_eval_many_negative_coefficients() {
+        // Cp(T) = 10 + 1/T + 2/T² + 3/T³
+        let seg = seg(1.0, 1000.0, 10.0, vec![], vec![1.0, 2.0, 3.0]);
+        let t: f64 = 4.0;
+        let expected = 10.0 + 1.0 / t + 2.0 / t.powi(2) + 3.0 / t.powi(3);
         assert!((seg.eval(t) - expected).abs() < 1e-10);
     }
 }

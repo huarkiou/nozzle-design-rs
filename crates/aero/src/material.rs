@@ -15,10 +15,11 @@ pub struct Material {
 }
 
 // ── TOML 反序列化辅助结构体 ─────────────────────────────────
-// 用于同时支持两种格式:
+// 用于同时支持三种格式:
 //   1) cp = 1004.675              → 常数比热容
-//   2) cp_segments = [...]        → 分段多项式变比热容
-//   3) cp = nan                   → 向后兼容，触发 NASA 9 空气模型（在 config.rs 中处理）
+//   2) cp = nan                   → 向后兼容，触发 NASA 9 空气模型（在 config.rs 中处理）
+//   3) cp = 1004.675              → 分段多项式变比热容（cp 作为多项式常数项 c₀）
+//      cp_segments = [...]          pos_coefficients 为正次幂系数，neg_coefficients 为负次幂系数
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -41,15 +42,27 @@ impl<'de> Deserialize<'de> for Material {
 
         let cp = match (has_cp, has_segments) {
             (true, false) => Cp::Constant(helper.cp.unwrap()),
-            (false, true) => Cp::from_piecewise_segments(helper.cp_segments),
             (true, true) => {
+                let cp_val = helper.cp.unwrap();
+                if cp_val.is_nan() {
+                    return Err(serde::de::Error::custom(
+                        "使用 cp_segments 时 cp 不能为 nan（cp 将作为多项式常数项）",
+                    ));
+                }
+                let mut segs = helper.cp_segments;
+                for s in &mut segs {
+                    s.cp = cp_val;
+                }
+                Cp::from_piecewise_segments(segs)
+            }
+            (false, true) => {
                 return Err(serde::de::Error::custom(
-                    "不能同时指定 'cp' 和 'cp_segments'，请只保留其中一个",
+                    "使用 cp_segments 时必须同时指定 cp 作为多项式常数项",
                 ));
             }
             (false, false) => {
                 return Err(serde::de::Error::custom(
-                    "必须指定 'cp'（常数比热容，可设为 nan 使用 NASA 9 空气模型）或 'cp_segments'（分段多项式变比热容）",
+                    "必须指定 'cp'（常数比热容，可设为 nan 使用 NASA 9 空气模型）或连同 'cp_segments'（分段多项式变比热容）",
                 ));
             }
         };
@@ -275,34 +288,35 @@ cp = 1004.675
     fn test_deserialize_piecewise_cp() {
         let toml_str = r#"
 molecular_weight = 28.968
+cp = 1000.0
 
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-coefficients = [1000.0, 0.2]
+pos_coefficients = [0.2]
 
 [[cp_segments]]
 t_min = 1000.0
 t_max = 3000.0
-coefficients = [800.0, 0.4]
+pos_coefficients = [0.3]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         // 第一段: 1000 + 0.2*500 = 1100
         assert!((m.cp(500.0) - 1100.0).abs() < 1e-10);
-        // 第二段: 800 + 0.4*2000 = 1600
+        // 第二段: 1000 + 0.3*2000 = 1600
         assert!((m.cp(2000.0) - 1600.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_deserialize_piecewise_constant_polynomial() {
-        // 零次多项式（常数）→ 等效于 cp = 500
+        // 只有 cp 常数项，无正/负次幂系数 → 等效于常数 cp
         let toml_str = r#"
 molecular_weight = 44.01
+cp = 846.0
 
 [[cp_segments]]
 t_min = 100.0
 t_max = 5000.0
-coefficients = [846.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         assert!((m.cp(300.0) - 846.0).abs() < 1e-10);
@@ -311,14 +325,15 @@ coefficients = [846.0]
 
     #[test]
     fn test_deserialize_high_degree_polynomial() {
-        // 5次多项式: 1 + 2T + 3T² + 4T³ + 5T⁴
+        // 5次正次幂多项式: 1 + 2T + 3T² + 4T³ + 5T⁴
         let toml_str = r#"
 molecular_weight = 18.0
+cp = 1.0
 
 [[cp_segments]]
 t_min = 0.0
 t_max = 1000.0
-coefficients = [1.0, 2.0, 3.0, 4.0, 5.0]
+pos_coefficients = [2.0, 3.0, 4.0, 5.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         let t: f64 = 2.0;
@@ -338,23 +353,20 @@ cp = nan
     }
 
     #[test]
-    fn test_deserialize_both_cp_and_segments_error() {
+    fn test_deserialize_both_cp_and_segments_success() {
+        // cp 作为常数项 c₀，与 cp_segments 可同时使用
         let toml_str = r#"
 molecular_weight = 28.968
-cp = 1004.0
+cp = 1000.0
 
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-coefficients = [1.0, 2.0]
+pos_coefficients = [0.2]
 "#;
-        let result: Result<Material, _> = toml::from_str(toml_str);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(
-            err.contains("cp"),
-            "expected error about cp conflict, got: {err}"
-        );
+        let m: Material = toml::from_str(toml_str).unwrap();
+        // 1000 + 0.2*500 = 1100
+        assert!((m.cp(500.0) - 1100.0).abs() < 1e-10);
     }
 
     #[test]
@@ -379,6 +391,71 @@ cp = 1004.0
 unknown_field = 42
 "#;
         // deny_unknown_fields 会拒绝未识别的字段
+        let result: Result<Material, _> = toml::from_str(toml_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_negative_powers() {
+        // 正次幂 + 负次幂组合: 100 + 2T + 100/T + 200/T²
+        let toml_str = r#"
+molecular_weight = 44.01
+cp = 100.0
+
+[[cp_segments]]
+t_min = 1.0
+t_max = 1000.0
+pos_coefficients = [2.0]
+neg_coefficients = [100.0, 200.0]
+"#;
+        let m: Material = toml::from_str(toml_str).unwrap();
+        let t = 10.0;
+        let expected = 100.0 + 2.0 * t + 100.0 / t + 200.0 / (t * t);
+        assert!((m.cp(t) - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_deserialize_negative_powers_only() {
+        // 仅负次幂: 50 + 100/T
+        let toml_str = r#"
+molecular_weight = 18.0
+cp = 50.0
+
+[[cp_segments]]
+t_min = 1.0
+t_max = 1000.0
+neg_coefficients = [100.0]
+"#;
+        let m: Material = toml::from_str(toml_str).unwrap();
+        let t = 5.0;
+        assert!((m.cp(t) - (50.0 + 100.0 / t)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_deserialize_segments_without_cp_error() {
+        let toml_str = r#"
+molecular_weight = 28.968
+
+[[cp_segments]]
+t_min = 200.0
+t_max = 1000.0
+pos_coefficients = [0.2]
+"#;
+        let result: Result<Material, _> = toml::from_str(toml_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_segments_with_nan_cp_error() {
+        let toml_str = r#"
+molecular_weight = 28.968
+cp = nan
+
+[[cp_segments]]
+t_min = 200.0
+t_max = 1000.0
+pos_coefficients = [0.2]
+"#;
         let result: Result<Material, _> = toml::from_str(toml_str);
         assert!(result.is_err());
     }
