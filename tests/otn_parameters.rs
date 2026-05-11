@@ -7,8 +7,8 @@
 mod common;
 
 use aero::{
-    nozzle::{Control, Geometry, Inlet, NozzleConfig, Outlet, Throat, IO},
     Material,
+    nozzle::{Control, Geometry, IO, Inlet, NozzleConfig, Outlet, Throat},
 };
 use common::{assert_charlines_valid, run_otn_custom};
 

@@ -8,10 +8,10 @@
 #![allow(dead_code)]
 
 use aero::{
-    moc::CharLines,
-    nozzle::{ConstraintNozzle, Control, Geometry, Inlet, NozzleConfig, Outlet, Throat, IO},
-    streamline_trace::{StreamlineConfig, StreamlineTrace},
     Material,
+    moc::CharLines,
+    nozzle::{ConstraintNozzle, Control, Geometry, IO, Inlet, NozzleConfig, Outlet, Throat},
+    streamline_trace::{StreamlineConfig, StreamlineTrace},
 };
 use geometry::ClosedCurve;
 
