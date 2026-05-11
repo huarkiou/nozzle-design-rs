@@ -12,10 +12,10 @@
 /// 所有测试标记为 `#[ignore]`，因为完整 OTN 计算耗时较长。
 /// 使用 `cargo test -- --ignored` 运行。
 use aero::{
-    moc::CharLines,
-    nozzle::{ConstraintNozzle, Control, Geometry, Inlet, NozzleConfig, Outlet, Throat, IO},
-    streamline_trace::{StreamlineConfig, StreamlineTrace},
     Material,
+    moc::CharLines,
+    nozzle::{ConstraintNozzle, Control, Geometry, IO, Inlet, NozzleConfig, Outlet, Throat},
+    streamline_trace::{StreamlineConfig, StreamlineTrace},
 };
 use geometry::{Circle, ClosedCurve, Ellipse, Rectangular, SuperEllipse};
 

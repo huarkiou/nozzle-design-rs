@@ -1,5 +1,5 @@
-use crate::cp::CpSegment;
 use crate::Cp;
+use crate::cp::CpSegment;
 use math::quadrature;
 use serde::{Deserialize, Deserializer, Serialize};
 
