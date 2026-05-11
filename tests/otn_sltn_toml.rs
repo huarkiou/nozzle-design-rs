@@ -11,16 +11,18 @@
 /// - 常数比热容（γ=1.4 常比热空气）
 ///
 /// 使用 `cargo test -- --ignored` 运行。
+mod common;
+
 use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
 
-use aero::Material;
-use aero::moc::{CharLines, read_charlines_from_file_checked};
+use aero::moc::{read_charlines_from_file_checked, CharLines};
 use aero::nozzle::{ConstraintNozzle, NozzleConfig};
 use aero::streamline_trace::{StreamlineConfig, StreamlineTrace};
+use aero::Material;
 use geometry::{Circle, ClosedCurve, Ellipse, Rectangular, SuperEllipse};
 use serde::Deserialize;
 
@@ -251,20 +253,6 @@ fn build_shape(shape: &SltnShape, factor: f64) -> Box<dyn ClosedCurve> {
     }
 }
 
-/// 验证 SLTN 模型的完整性。
-fn assert_model_valid(tracer: &StreamlineTrace) {
-    assert!(!tracer.model.is_empty());
-    assert!(!tracer.downstream.is_empty());
-    assert!(!tracer.upstream.is_empty());
-
-    for (i, profile) in tracer.model.iter().enumerate() {
-        assert!(profile.len() >= 2, "profile {i}: too few points");
-        for w in profile.windows(2) {
-            assert!(w[0].x < w[1].x, "profile {i}: x not monotonic");
-        }
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // 测试用例：TOML → OTN → 文件 I/O → SLTN → 验证
 // ═══════════════════════════════════════════════════════════════════════
@@ -312,7 +300,7 @@ fn test_toml_pipeline_piecewise_cp() {
     let tracer = run_sltn_from_toml_template(sltn_toml, &field_path);
 
     // 6. 验证
-    assert_model_valid(&tracer);
+    common::assert_sltn_valid(&tracer, 6.0);
 }
 
 /// 常数比热容 (γ=1.4) — 完整 TOML 继承流程。
@@ -363,7 +351,7 @@ fn test_toml_pipeline_constant_cp() {
     let tracer = run_sltn_from_toml_template(sltn_toml, &field_path);
 
     // 6. 验证
-    assert_model_valid(&tracer);
+    common::assert_sltn_valid(&tracer, 6.0);
 }
 
 /// 验证分段多项式 Cp 的变比热特性。
@@ -538,5 +526,5 @@ fn test_toml_pipeline_custom_cp_segments() {
     let tracer = run_sltn_from_toml_template(sltn_toml, &field_path);
 
     // 6. 验证
-    assert_model_valid(&tracer);
+    common::assert_sltn_valid(&tracer, 6.0);
 }

@@ -53,6 +53,13 @@ nozzle-design-rs/
 ├── apps/                      # 命令行应用
 │   ├── otn/                   # 最优推力喷管 (Optimal Thrust Nozzle)
 │   └── sltn/                  # 三维流线追踪喷管 (StreamLine Tracing Nozzle)
+├── tests/                     # 项目级集成测试
+│   ├── common/                # 测试公共模块
+│   ├── otn_parameters.rs      # OTN 参数覆盖测试
+│   ├── sltn_shapes.rs         # SLTN 截面形状覆盖测试
+│   ├── otn_sltn_sern.rs       # OTN→SLTN 完整工作流（SERN 设计）
+│   ├── otn_sltn_toml.rs       # TOML 配置文件继承流程测试
+│   └── fixtures/              # TOML 配置模板
 ├── tools/                     # Python 可视化与数据后处理脚本
 ├── .github/workflows/         # CI/CD (GitHub Actions)
 ├── Cargo.toml                 # Rust workspace 配置
@@ -241,12 +248,12 @@ cargo run -p sltn --release -- sltn.toml
 irrotational = true          # 无旋特征线法 (true) 或有旋特征线法 (false)
 axisymmetric = true          # 二维轴对称 (true) 或二维平面 (false)
 eps = 1e-5                   # 残差收敛容差
-n_correction_max = 40        # 欧拉预估校正最大迭代次数
+n_correction_max = 20        # 欧拉预估校正最大迭代次数
 n_inlet = 61                 # 入口初值线网格点数
 
 [Material]
-r_gas = 287.042              # 气体常数 J/(kg·K)
-gamma = 1.4                  # 比热比
+molecular_weight = 28.968    # 摩尔质量 (kg/kmol)
+cp = nan                     # 定压比热容 J/(kg·K)，nan 使用 NASA 9 空气模型
 
 [Geometry]
 height = 1.0                 # 进口高度/半径 (m)
@@ -274,47 +281,62 @@ output_prefix = ""           # 输出文件前缀
 #### Material 配置方式
 
 ```toml
-# 方式 1：气体常数 + 比热比（等效于常比热）
-[Material]
-r_gas = 287.042
-gamma = 1.4
-
-# 方式 2：摩尔质量 + 分段多项式 Cp
+# 方式 1：常数比热容
 [Material]
 molecular_weight = 28.968
-cp_model = "piecewise_polynomial"
+cp = 1004.675                 # 常数定压比热容 J/(kg·K)
 
-# 方式 3：摩尔质量 + NASA 9系数
+# 方式 2：内置 NASA 9 系数变比热空气模型
 [Material]
 molecular_weight = 28.968
-cp_model = "nasa9"
+cp = nan                      # nan 触发内置 NASA 9 系数空气模型
+
+# 方式 3：自定义分段多项式变比热容
+[Material]
+molecular_weight = 28.968
+# pos_coefficients[0]=T⁰（常数项）, [1]=T¹, [2]=T², …
+# neg_coefficients[0]=T⁻¹, [1]=T⁻², …
+[[Material.cp_segments]]
+t_min = 200.0
+t_max = 1000.0
+pos_coefficients = [1437.799, -1.653609, 0.003062254, -2.279138e-06, 6.272365e-10]
+neg_coefficients = [-56496.26, 2898903.0]
+[[Material.cp_segments]]
+t_min = 1000.0
+t_max = 6000.0
+pos_coefficients = [1476.665, -0.06138349, 2.027963e-05, -3.075525e-09, 1.888054e-13]
+neg_coefficients = [-361053.2, 69324940.0]
+# 向后兼容：pos_coefficients 为空时回退到材料级 cp 作为常数项
 ```
 
 ### SLTN 配置文件（sltn.toml）
 
 ```toml
-[base_fluid_field]
-datasource_inlet = "inlet_field_data.txt"
-datasource_outlet = "outlet_field_data.txt"
-axisymmetric = true
-
-[inlet]
-type = "Circle"
-[inlet.params]
-radius = 1.0
-
-[outlet]
-type = "Ellipse"
-[outlet.params]
-a = 2.0
-b = 1.5
-
-[control]
-n_theta = 72                 # 周向采样点数
-n_axis = 200                 # 轴向采样点数
-monotonic = true             # 强制单调性
-weight_parameter_a = 2.0    # 加权参数 a
+[Control]
+n_theta = 66                 # 周向采样点数
+n_axis = 111                 # 轴向采样点数
+monotonic = false            # 强制单调性
+weight_parameter_a = 0       # 加权参数 a
 export_obj = false           # 是否导出 OBJ 模型
+
+[BaseFluidField]
+axisymmetric = true          # 基准流场类型
+datasource_inlet = './field_data.txt'
+datasource_outlet = './field_data.txt'
+
+[Inlet]
+normalized = true            # 坐标归一化
+shape = 'circle'
+center = [0, 0]
+radius = 0.9
+
+[Outlet]
+normalized = true
+shape = 'ellipse'
+center = [0, 0]
+a = 0.6
+b = 0.5
+alpha = 0                    # 旋转角 (°)
 ```
 
 ---
@@ -322,7 +344,7 @@ export_obj = false           # 是否导出 OBJ 模型
 ## 运行测试
 
 ```bash
-# 运行所有测试
+# 运行所有单元测试
 cargo test --workspace
 
 # 运行指定 crate 的测试
@@ -330,15 +352,30 @@ cargo test -p aero
 cargo test -p math
 cargo test -p geometry
 
+# 运行项目级集成测试（含 --ignored，耗时较长）
+cargo test -- --ignored
+
+# 运行特定分类的集成测试
+cargo test --test otn_parameters -- --ignored      # OTN 参数覆盖
+cargo test --test sltn_shapes -- --ignored          # SLTN 截面形状覆盖
+cargo test --test otn_sltn_sern -- --ignored        # SERN 设计工作流
+cargo test --test otn_sltn_toml -- --ignored        # TOML 配置文件流程
+
 # 包含详细输出
 cargo test --workspace -- --nocapture
-
-# 代码风格检查
-cargo fmt --check
 
 # 运行 benchmark（需 nightly toolchain）
 cargo bench -p aero
 ```
+
+### 集成测试分类
+
+| 测试文件 | 说明 | 测试数 |
+|---------|------|--------|
+| `otn_parameters.rs` | OTN 参数覆盖：流动类型、材料模型、几何、进口/出口条件 | 15 |
+| `sltn_shapes.rs` | SLTN 截面覆盖：圆形/椭圆/矩形/超椭圆、混合形状、平面流场、分辨率 | 16 |
+| `otn_sltn_sern.rs` | OTN→SLTN 完整工作流，覆盖典型超燃冲压发动机 SERN 设计 | 9 |
+| `otn_sltn_toml.rs` | TOML 配置文件输入路径，覆盖三种材料模型 | 5 |
 
 ---
 
