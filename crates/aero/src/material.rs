@@ -42,23 +42,29 @@ impl<'de> Deserialize<'de> for Material {
 
         let cp = match (has_cp, has_segments) {
             (true, false) => Cp::Constant(helper.cp.unwrap()),
-            (true, true) => {
-                let cp_val = helper.cp.unwrap();
-                if cp_val.is_nan() {
-                    return Err(serde::de::Error::custom(
-                        "使用 cp_segments 时 cp 不能为 nan（cp 将作为多项式常数项）",
-                    ));
-                }
+            (_, true) => {
+                // 分段多项式：常数项优先来自 pos_coefficients[0]，
+                // 若 pos_coefficients 为空则回退到材料级 cp（向后兼容）
                 let mut segs = helper.cp_segments;
                 for s in &mut segs {
-                    s.cp = cp_val;
+                    if !s.pos_coefficients.is_empty() {
+                        // 新格式：pos_coefficients[0] 为 T⁰（常数项）
+                        s.cp = s.pos_coefficients.remove(0);
+                    } else if let Some(cp_val) = helper.cp {
+                        // 旧格式：材料级 cp 作为常数项
+                        if cp_val.is_nan() {
+                            return Err(serde::de::Error::custom(
+                                "使用 cp_segments 时 cp 不能为 nan（cp 将作为多项式常数项）",
+                            ));
+                        }
+                        s.cp = cp_val;
+                    } else {
+                        return Err(serde::de::Error::custom(
+                            "cp_segments 中 pos_coefficients 不能为空（第一项为常数项 T⁰），或需指定材料级 cp",
+                        ));
+                    }
                 }
                 Cp::from_piecewise_segments(segs)
-            }
-            (false, true) => {
-                return Err(serde::de::Error::custom(
-                    "使用 cp_segments 时必须同时指定 cp 作为多项式常数项",
-                ));
             }
             (false, false) => {
                 return Err(serde::de::Error::custom(
@@ -163,49 +169,6 @@ impl Material {
         Self::from_mw_cp(28.968, 1004.675)
     }
 
-    // 空气（分段多项式 Cp）
-    pub fn air_piecewise_polynomial() -> Self {
-        Self::new(28.968, move |t| {
-            let poly1 = |x: f64| {
-                1161.482
-                    + (-2.368819
-                        + (0.01485511
-                            + (-5.034909e-5
-                                + (9.928570e-8
-                                    + (-1.111097e-10 + (6.540196e-14 - 1.573588e-17 * x) * x)
-                                        * x)
-                                    * x)
-                                * x)
-                            * x)
-                        * x
-            };
-            let poly2 = |x: f64| {
-                -7069.814
-                    + (33.70605
-                        + (-0.05812760
-                            + (5.421615e-5
-                                + (-2.936679e-8
-                                    + (9.237533e-12 + (-1.565553e-15 + 1.112335e-19 * x) * x)
-                                        * x)
-                                    * x)
-                                * x)
-                            * x)
-                        * x
-            };
-            if (100. ..=1000.).contains(&t) {
-                poly1(t)
-            } else if (1000. ..=3000.).contains(&t) {
-                poly2(t)
-            } else if t < 100. {
-                poly1(100.)
-            } else if t > 3000. {
-                poly2(3000.)
-            } else {
-                poly1(100.)
-            }
-        })
-    }
-
     // 空气(NASA 9系数模型）
     pub fn air_nasa9piecewise_polynomial() -> Self {
         Self::new(28.968, move |t| {
@@ -252,14 +215,6 @@ mod test {
     }
 
     #[test]
-    fn test_air_piecewise_polynomial() {
-        let m = Material::air_piecewise_polynomial();
-        // 验证在有效温度范围内返回合理值
-        assert!(m.cp(300.0) > 0.0);
-        assert!(m.cp(1500.0) > 0.0);
-    }
-
-    #[test]
     fn test_air_nasa9() {
         let m = Material::air_nasa9piecewise_polynomial();
         assert!(m.cp(300.0) > 0.0);
@@ -288,17 +243,16 @@ cp = 1004.675
     fn test_deserialize_piecewise_cp() {
         let toml_str = r#"
 molecular_weight = 28.968
-cp = 1000.0
 
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-pos_coefficients = [0.2]
+pos_coefficients = [1000.0, 0.2]
 
 [[cp_segments]]
 t_min = 1000.0
 t_max = 3000.0
-pos_coefficients = [0.3]
+pos_coefficients = [1000.0, 0.3]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         // 第一段: 1000 + 0.2*500 = 1100
@@ -309,14 +263,14 @@ pos_coefficients = [0.3]
 
     #[test]
     fn test_deserialize_piecewise_constant_polynomial() {
-        // 只有 cp 常数项，无正/负次幂系数 → 等效于常数 cp
+        // 只有常数项，无正/负次幂系数 → 等效于常数 cp
         let toml_str = r#"
 molecular_weight = 44.01
-cp = 846.0
 
 [[cp_segments]]
 t_min = 100.0
 t_max = 5000.0
+pos_coefficients = [846.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         assert!((m.cp(300.0) - 846.0).abs() < 1e-10);
@@ -328,12 +282,11 @@ t_max = 5000.0
         // 5次正次幂多项式: 1 + 2T + 3T² + 4T³ + 5T⁴
         let toml_str = r#"
 molecular_weight = 18.0
-cp = 1.0
 
 [[cp_segments]]
 t_min = 0.0
 t_max = 1000.0
-pos_coefficients = [2.0, 3.0, 4.0, 5.0]
+pos_coefficients = [1.0, 2.0, 3.0, 4.0, 5.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
         let t: f64 = 2.0;
@@ -354,7 +307,25 @@ cp = nan
 
     #[test]
     fn test_deserialize_both_cp_and_segments_success() {
-        // cp 作为常数项 c₀，与 cp_segments 可同时使用
+        // 新格式：常数项来自 pos_coefficients[0]，cp 字段被忽略
+        let toml_str = r#"
+molecular_weight = 28.968
+cp = 999.0
+
+[[cp_segments]]
+t_min = 200.0
+t_max = 1000.0
+pos_coefficients = [1100.0, 0.2]
+"#;
+        let m: Material = toml::from_str(toml_str).unwrap();
+        // 常数项从 pos_coefficients[0] 取：1100 + 0.2*500 = 1200
+        // cp=999 被忽略（pos_coefficients 非空时优先使用新格式）
+        assert!((m.cp(500.0) - 1200.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_deserialize_both_cp_and_empty_pos_coefficients() {
+        // pos_coefficients 为空时回退到材料级 cp（向后兼容）
         let toml_str = r#"
 molecular_weight = 28.968
 cp = 1000.0
@@ -362,11 +333,9 @@ cp = 1000.0
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-pos_coefficients = [0.2]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
-        // 1000 + 0.2*500 = 1100
-        assert!((m.cp(500.0) - 1100.0).abs() < 1e-10);
+        assert!((m.cp(500.0) - 1000.0).abs() < 1e-10);
     }
 
     #[test]
@@ -400,12 +369,11 @@ unknown_field = 42
         // 正次幂 + 负次幂组合: 100 + 2T + 100/T + 200/T²
         let toml_str = r#"
 molecular_weight = 44.01
-cp = 100.0
 
 [[cp_segments]]
 t_min = 1.0
 t_max = 1000.0
-pos_coefficients = [2.0]
+pos_coefficients = [100.0, 2.0]
 neg_coefficients = [100.0, 200.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
@@ -416,14 +384,14 @@ neg_coefficients = [100.0, 200.0]
 
     #[test]
     fn test_deserialize_negative_powers_only() {
-        // 仅负次幂: 50 + 100/T
+        // 仅负次幂 + 常数项（常数项来自 pos_coefficients[0]）: 50 + 100/T
         let toml_str = r#"
 molecular_weight = 18.0
-cp = 50.0
 
 [[cp_segments]]
 t_min = 1.0
 t_max = 1000.0
+pos_coefficients = [50.0]
 neg_coefficients = [100.0]
 "#;
         let m: Material = toml::from_str(toml_str).unwrap();
@@ -433,13 +401,13 @@ neg_coefficients = [100.0]
 
     #[test]
     fn test_deserialize_segments_without_cp_error() {
+        // 没有 pos_coefficients 也没有 cp → 错误
         let toml_str = r#"
 molecular_weight = 28.968
 
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-pos_coefficients = [0.2]
 "#;
         let result: Result<Material, _> = toml::from_str(toml_str);
         assert!(result.is_err());
@@ -447,6 +415,7 @@ pos_coefficients = [0.2]
 
     #[test]
     fn test_deserialize_segments_with_nan_cp_error() {
+        // pos_coefficients 为空 + cp=nan → 错误
         let toml_str = r#"
 molecular_weight = 28.968
 cp = nan
@@ -454,7 +423,6 @@ cp = nan
 [[cp_segments]]
 t_min = 200.0
 t_max = 1000.0
-pos_coefficients = [0.2]
 "#;
         let result: Result<Material, _> = toml::from_str(toml_str);
         assert!(result.is_err());

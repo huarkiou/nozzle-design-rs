@@ -1,0 +1,40 @@
+###### 特征线法参数 ######
+[MOCControl]
+irrotational = true
+axisymmetric = true
+eps = 1e-5
+n_correction_max = 20
+n_inlet = 61
+
+###### 几何约束 ######
+[Geometry]
+height = 1
+length = 6
+height_e = nan
+width = 1
+
+###### 材料属性 — 常数比热容（常比热空气 γ=1.4） ######
+[Material]
+molecular_weight = 28.968
+# 常数比热容 cp=1004.675 → γ=1.4 空气模型
+cp = 1004.675
+
+###### 进口气流参数 ######
+[Inlet]
+p_total = 800000.0
+T_total = 2000.0
+Ma = 1.20
+theta = 0
+
+###### 喉部过渡段参数 ######
+[Throat]
+R_t = 0.0
+theta_a = nan
+
+###### 出口约束参数 ######
+[Outlet]
+p_ambient = 7000
+
+###### 输入输出 ######
+[IO]
+output_prefix = ""

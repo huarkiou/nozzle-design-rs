@@ -1,0 +1,28 @@
+###### 控制参数 ######
+[Control]
+n_theta = 12
+n_axis = 20
+monotonic = false
+weight_parameter_a = 0
+
+###### 基准流场参数 ######
+[BaseFluidField]
+axisymmetric = true
+datasource_inlet = './field_data.txt'
+datasource_outlet = './field_data.txt'
+
+###### 进口截面参数 ######
+[Inlet]
+normalized = true
+shape = 'circle'
+center = [0, 0]
+radius = 0.9
+
+###### 出口截面参数 ######
+[Outlet]
+normalized = true
+shape = 'ellipse'
+center = [0, 0]
+a = 0.6
+b = 0.5
+alpha = 0

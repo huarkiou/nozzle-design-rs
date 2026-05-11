@@ -2,6 +2,19 @@
 resolver = "3"
 members = ["crates/math", "crates/aero", "crates/geometry", "apps/otn", "apps/sltn"]
 
+[package]
+name = "nozzle-design-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aero = { path = "crates/aero" }
+geometry = { path = "crates/geometry" }
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
+
 [profile.release]
 lto = "thin"
 opt-level = 3

@@ -313,7 +313,7 @@ mod tests {
     fn test_new() {
         let config = NozzleConfig {
             control: Control::default(),
-            material: Material::air_piecewise_polynomial(), // 使用理想空气
+            material: Material::air_nasa9piecewise_polynomial(),
             inlet: Inlet::default(),
             geometry: Geometry::default(),
             throat: Throat::default(),
@@ -337,7 +337,7 @@ mod tests {
     fn make_valid() -> NozzleConfig {
         NozzleConfig {
             control: Control::default(),
-            material: Material::air_piecewise_polynomial(),
+            material: Material::air_nasa9piecewise_polynomial(),
             inlet: Inlet::default(),
             geometry: Geometry::default(),
             throat: Throat::default(),
