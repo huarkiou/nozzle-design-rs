@@ -1,6 +1,6 @@
 use crate::moc::{
-    AreaType,
     unitprocess::{Irrotational, Rotational, UnitProcess, UnitprocessConfig},
+    AreaType,
 };
 use math::Tolerance;
 use serde::{Deserialize, Serialize};
@@ -215,7 +215,8 @@ impl NozzleConfig {
         let mut config: NozzleConfig = toml::from_str(&contents)?;
         config.inlet.theta = config.inlet.theta.to_radians();
         config.throat.theta_a = config.throat.theta_a.to_radians();
-        // 若 cp 为 nan，使用 NASA 9系数变比热空气模型
+        // 若 cp 为 nan（常数比热容模式，旧版兼容）→ 使用 NASA 9系数变比热空气模型
+        // 若 TOML 中指定了 cp_segments，则 Material::deserialize 已自动构建分段多项式 Cp
         if config.material.cp(300.0).is_nan() {
             config.material = Material::air_nasa9piecewise_polynomial();
         }
