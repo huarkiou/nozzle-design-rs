@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use aero::{
     Material,
     moc::{CharLine, CharLines, MocPoint},
@@ -9,7 +11,7 @@ use geometry::Point3d;
 
 fn bench_trace_downstream_small(c: &mut Criterion) {
     c.bench_function("trace_downstream_small", |b| {
-        let mat = Material::from_rgas_gamma(320.0, 1.2);
+        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
         let mut lines = CharLines::new();
 
@@ -22,7 +24,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             35000.0,
             3000.0,
             0.090,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line0.push(MocPoint::from_compatible(
             0.10,
@@ -32,7 +34,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             34000.0,
             3000.0,
             0.088,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line0.push(MocPoint::from_compatible(
             0.10,
@@ -42,7 +44,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             34500.0,
             3000.0,
             0.087,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         lines.push(line0);
 
@@ -55,7 +57,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             34042.0,
             3000.0,
             0.086,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line1.push(MocPoint::from_compatible(
             0.131,
@@ -65,7 +67,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33800.0,
             3000.0,
             0.085,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line1.push(MocPoint::from_compatible(
             0.131,
@@ -75,7 +77,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             34100.0,
             3000.0,
             0.084,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         lines.push(line1);
 
@@ -88,7 +90,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33500.0,
             3000.0,
             0.083,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line2.push(MocPoint::from_compatible(
             0.165,
@@ -98,7 +100,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33600.0,
             3000.0,
             0.082,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line2.push(MocPoint::from_compatible(
             0.165,
@@ -108,7 +110,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33900.0,
             3000.0,
             0.081,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         lines.push(line2);
 
@@ -121,7 +123,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33200.0,
             3000.0,
             0.080,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line3.push(MocPoint::from_compatible(
             0.200,
@@ -131,7 +133,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33400.0,
             3000.0,
             0.079,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         line3.push(MocPoint::from_compatible(
             0.200,
@@ -141,7 +143,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
             33700.0,
             3000.0,
             0.078,
-            mat.clone(),
+            Arc::clone(&mat),
         ));
         lines.push(line3);
 
@@ -155,7 +157,7 @@ fn bench_trace_downstream_small(c: &mut Criterion) {
 
 fn bench_trace_downstream_medium(c: &mut Criterion) {
     c.bench_function("trace_downstream_medium", |b| {
-        let mat = Material::from_rgas_gamma(320.0, 1.2);
+        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
         let mut lines = CharLines::new();
 
@@ -172,7 +174,7 @@ fn bench_trace_downstream_medium(c: &mut Criterion) {
                     34000.0,
                     3000.0,
                     0.085,
-                    mat.clone(),
+                    Arc::clone(&mat),
                 ));
             }
             lines.push(line);

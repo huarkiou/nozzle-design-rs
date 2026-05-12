@@ -167,6 +167,7 @@ fn projection_param(x: f64, y: f64, p_a: &MocPoint, p_b: &MocPoint) -> f64 {
 mod tests {
     use super::*;
     use crate::Material;
+    use std::sync::Arc;
 
     fn make_point(x: f64, y: f64, u: f64, v: f64) -> MocPoint {
         MocPoint::new(
@@ -177,7 +178,7 @@ mod tests {
             100000.0,
             300.0,
             1.2,
-            Material::from_rgas_gamma(287.0, 1.4),
+            Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
         )
     }
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::moc::unitprocess::UnitprocessConfig;
 use crate::moc::{
     AreaType, CharLine, MocPoint,
@@ -195,7 +197,7 @@ impl UnitProcess for Irrotational {
             p: p3.p,
             t: p3.t,
             rho: p3.rho,
-            mat: p3.mat.clone(),
+            mat: Arc::clone(&p3.mat),
         };
         for _ in 0..self.conf.n_corr {
             let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
@@ -513,6 +515,8 @@ impl UnitProcess for Irrotational {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::{
         Material,
@@ -529,7 +533,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(320.0, 1.2);
+        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
         // 构造两个输入点
         let p1 = MocPoint::from_compatible(
@@ -540,7 +544,7 @@ mod tests {
             34042.0,
             3000.0,
             0.086151,
-            mat.clone(),
+            Arc::clone(&mat),
         );
         let p2 = MocPoint::from_compatible(
             0.135683,
@@ -550,7 +554,7 @@ mod tests {
             32781.0,
             3000.0,
             0.083482,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 2628.726210082568_f64;
@@ -563,7 +567,7 @@ mod tests {
             28742.423476934055,
             1200.4683626106616,
             0.07481934065705345,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -602,7 +606,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.042, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.042, 1.4));
 
         // 构造两个输入点
         let velocity = 1948.3337719140004_f64;
@@ -615,7 +619,7 @@ mod tests {
             65.123505884851653,
             2000.0,
             0.0010063378824976170,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 1955.5966975668214_f64;
@@ -628,7 +632,7 @@ mod tests {
             57.598901602349798,
             2000.0,
             0.00076988609083849971,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 1949.2684506799624_f64;
@@ -641,7 +645,7 @@ mod tests {
             74.5290738178469,
             108.96389835620812,
             0.0010021388327088687,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -680,7 +684,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(320.0, 1.2);
+        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
         // 构造两个输入点
         let p1 = MocPoint::from_compatible(
@@ -691,7 +695,7 @@ mod tests {
             170250.,
             3000.0,
             0.32947,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 2332.5011075972866;
@@ -704,7 +708,7 @@ mod tests {
             151235.51317795238,
             1583.1871310045397,
             0.2985071667131088,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -743,7 +747,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(320.0, 1.2);
+        let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
         // 构造两个输入点
         let p1 = MocPoint::from_compatible(
@@ -754,7 +758,7 @@ mod tests {
             1160400.,
             3000.0,
             1.6309,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let p2 = MocPoint::from_compatible(
@@ -765,7 +769,7 @@ mod tests {
             1154500.,
             3000.0,
             1.6240,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 1727.8264988128874;
@@ -778,7 +782,7 @@ mod tests {
             1157449.3598894787,
             2222.5561432291665,
             1.6274499981586739,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -818,7 +822,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.4));
 
         // 构造两个输入点
         let mut velocity = 578.68844312083490;
@@ -831,7 +835,7 @@ mod tests {
             175574.31375951759,
             300.0,
             4.5876520884696967,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         velocity = 578.42134504689045;
@@ -844,7 +848,7 @@ mod tests {
             176286.08472429001,
             300.0,
             4.6009075183326198,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 578.6884431208349;
@@ -857,7 +861,7 @@ mod tests {
             175575.22539912476,
             133.33317695810655,
             4.587658492100335,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -896,7 +900,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.4));
 
         // 构造两个输入点
         let velocity = 578.42134504689045;
@@ -909,7 +913,7 @@ mod tests {
             176286.08472429001,
             300.,
             4.6009075183326198,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 578.68844312083490;
@@ -922,7 +926,7 @@ mod tests {
             175574.31375951759,
             300.0,
             4.5876520884696967,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 578.6884431208349;
@@ -935,7 +939,7 @@ mod tests {
             175575.22539912476,
             133.33317695810655,
             4.587658492100335,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -978,7 +982,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.4));
 
         // 构造两个输入点
         let velocity = 578.68844312083490_f64;
@@ -991,7 +995,7 @@ mod tests {
             175574.31375951762,
             300.0,
             4.5876310941627727,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 578.42134504689045_f64;
@@ -1004,7 +1008,7 @@ mod tests {
             176286.08472429001,
             300.0,
             4.6009075183326198,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 578.5103632704744_f64;
@@ -1017,7 +1021,7 @@ mod tests {
             176048.36890983424,
             133.43573797015043,
             4.596475229646061,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -1056,7 +1060,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.4));
 
         // 构造两个输入点
         let velocity = 421.13870346605336_f64;
@@ -1069,7 +1073,7 @@ mod tests {
             886014.89349445840,
             300.0,
             14.578529717965795,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 420.96812614461288_f64;
@@ -1082,7 +1086,7 @@ mod tests {
             887060.13126201590,
             300.0,
             14.590840930401765,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let velocity = 420.91142292916430_f64;
@@ -1095,7 +1099,7 @@ mod tests {
             887410.75364098849,
             300.0,
             14.594930905654611,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (420.6220130296241, 0.13621169438131384);
@@ -1107,7 +1111,7 @@ mod tests {
             889188.1360271955,
             211.94712641090678,
             14.61581981911365,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -1147,7 +1151,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.2874718741354083);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.2874718741354083));
 
         // 构造两个输入点
         let (velocity, theta): (f64, f64) = (2035.7726107195051, 0.31325662671349330);
@@ -1159,7 +1163,7 @@ mod tests {
             42576.927088002609,
             2868.0,
             0.11810927136810002,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (2035.9849779642398, 0.31583904158230208);
@@ -1171,7 +1175,7 @@ mod tests {
             42525.885489298969,
             2868.0,
             0.11799928133601660,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (2032.8683375746696, 0.31146882264229447);
@@ -1183,7 +1187,7 @@ mod tests {
             43279.197749120111,
             2868.0,
             0.11961963449605677,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (2035.0914547801467, 0.3138191082330746);
@@ -1195,7 +1199,7 @@ mod tests {
             42740.89366076534,
             1257.157592612592,
             0.11846240650806635,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -1235,7 +1239,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(320., 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(320., 1.4));
 
         // 构造两个输入点
         let (velocity, theta): (f64, f64) = (1789.6295849830256, 0.32746227178513421);
@@ -1247,7 +1251,7 @@ mod tests {
             9898.1499933631203,
             2000.0,
             0.054248073729845178,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (1794.7436828628317, 0.34103154223032950);
@@ -1259,7 +1263,7 @@ mod tests {
             9409.7996711261931,
             2000.0,
             0.052322544523846583,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (1789.4319903359690, 0.33055297823245189);
@@ -1271,7 +1275,7 @@ mod tests {
             9917.3456869649326,
             2000.0,
             0.054323198622279717,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (1794.1731949180319, 0.33416148703456666);
@@ -1283,7 +1287,7 @@ mod tests {
             9463.47216247024,
             562.9207797489387,
             0.05253554418231826,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine
@@ -1323,7 +1327,7 @@ mod tests {
         };
 
         let unitprocess = Irrotational { conf: config };
-        let mat = Material::from_rgas_gamma(287.04, 1.4);
+        let mat = Arc::new(Material::from_rgas_gamma(287.04, 1.4));
 
         // 构造两个输入点
         let (velocity, theta): (f64, f64) = (578.67913564023843, 0.0);
@@ -1335,7 +1339,7 @@ mod tests {
             175606.89227499434,
             300.0,
             4.5882134340057954,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (578.68844312083490, 0.0);
@@ -1347,7 +1351,7 @@ mod tests {
             175574.31375951803,
             300.0,
             4.5875638563519372,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         let (velocity, theta): (f64, f64) = (578.6884431208349, 0.);
@@ -1359,7 +1363,7 @@ mod tests {
             175606.89227499434,
             133.33853817022347,
             4.588213434005795,
-            mat.clone(),
+            Arc::clone(&mat),
         );
 
         // 创建 CharLine

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     moc::{CharLine, CharLines, MocPoint},
     nozzle::{NozzleConfig, Section},
@@ -78,7 +80,7 @@ fn cal_initial_value_line_direct(config: &NozzleConfig) -> CharLines {
             p,
             rho,
             t,
-            mat: config.material.clone(),
+            mat: Arc::new(config.material.clone()),
         };
 
         if point.mach_number() < 1.0 {
@@ -165,7 +167,7 @@ fn cal_initial_value_line_sauers(config: &NozzleConfig) -> CharLines {
             p,
             rho,
             t,
-            mat: config.material.clone(),
+            mat: Arc::new(config.material.clone()),
         };
 
         if point.mach_number() < 1.0 {

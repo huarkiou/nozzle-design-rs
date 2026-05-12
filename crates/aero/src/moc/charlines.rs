@@ -3,6 +3,7 @@ use std::{
     io::{BufRead, BufReader, BufWriter, Write},
     ops::{Deref, DerefMut},
     path::Path,
+    sync::Arc,
 };
 
 use crate::{
@@ -155,7 +156,7 @@ pub fn read_charlines_from_file<P: AsRef<Path>>(filepath: P) -> std::io::Result<
                         p: vals[4],
                         rho: vals[5],
                         t: vals[6],
-                        mat: Material::from_rgas_gamma(vals[7], vals[8]),
+                        mat: Arc::new(Material::from_rgas_gamma(vals[7], vals[8])),
                     };
                     current_line.push(point);
                 }

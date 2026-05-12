@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use aero::{
     Material,
     moc::{
@@ -17,7 +19,7 @@ fn test_interior_point_1() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Material::from_rgas_gamma(320.0, 1.2);
+    let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
     // 构造两个输入点
     let p1 = MocPoint::from_compatible(
@@ -28,7 +30,7 @@ fn test_interior_point_1() {
         34042.0,
         3000.0,
         0.086151,
-        mat.clone(),
+        Arc::clone(&mat),
     );
     let p2 = MocPoint::from_compatible(
         0.135683,
@@ -38,7 +40,7 @@ fn test_interior_point_1() {
         32781.0,
         3000.0,
         0.083482,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (2628.726210082568, 0.3013949963150419);
@@ -50,7 +52,7 @@ fn test_interior_point_1() {
         28742.423476934055,
         1200.4683626106616,
         0.07481934065705345,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     // 创建 CharLine
@@ -88,7 +90,7 @@ fn test_interior_point_2() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Material::from_rgas_gamma(287.042, 1.4);
+    let mat = Arc::new(Material::from_rgas_gamma(287.042, 1.4));
 
     // 构造两个输入点
     let (velocity, theta): (f64, f64) = (1948.3337719140004, 0.43988113776612270);
@@ -100,7 +102,7 @@ fn test_interior_point_2() {
         65.123505884851653,
         2000.0,
         0.0010063378824976170,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (1955.5966975668214, 0.47112060764605074);
@@ -112,7 +114,7 @@ fn test_interior_point_2() {
         57.598901602349798,
         2000.0,
         0.00076988609083849971,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (1949.2684506799624, 0.43805199441312853);
@@ -124,7 +126,7 @@ fn test_interior_point_2() {
         74.5290738178469,
         108.96389835620812,
         0.0010021388327088687,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     // 创建 CharLine
@@ -163,7 +165,7 @@ fn test_interior_point_1_variable() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Material::air_nasa9piecewise_polynomial();
+    let mat = Arc::new(Material::air_nasa9piecewise_polynomial());
 
     // 构造两个输入点
     let p1 = MocPoint::from_compatible(
@@ -174,7 +176,7 @@ fn test_interior_point_1_variable() {
         34042.0,
         3000.0,
         0.086151,
-        mat.clone(),
+        Arc::clone(&mat),
     );
     let p2 = MocPoint::from_compatible(
         0.135683,
@@ -184,7 +186,7 @@ fn test_interior_point_1_variable() {
         32781.0,
         3000.0,
         0.083482,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (2628.726210082568, 0.3013949963150419);
@@ -196,7 +198,7 @@ fn test_interior_point_1_variable() {
         28742.423476934055,
         1200.4683626106616,
         0.07481934065705345,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     // 创建 CharLine
@@ -234,7 +236,7 @@ fn test_interior_point_2_variable() {
     };
 
     let unitprocess = Irrotational { conf: config };
-    let mat = Material::air_nasa9piecewise_polynomial();
+    let mat = Arc::new(Material::air_nasa9piecewise_polynomial());
 
     // 构造两个输入点
     let (velocity, theta): (f64, f64) = (1948.3337719140004, 0.43988113776612270);
@@ -246,7 +248,7 @@ fn test_interior_point_2_variable() {
         65.123505884851653,
         2000.0,
         0.0010063378824976170,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (1955.5966975668214, 0.47112060764605074);
@@ -258,7 +260,7 @@ fn test_interior_point_2_variable() {
         57.598901602349798,
         2000.0,
         0.00076988609083849971,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let (velocity, theta): (f64, f64) = (1949.32887801886, 0.4376492892161206);
@@ -270,7 +272,7 @@ fn test_interior_point_2_variable() {
         74.99000723946135,
         104.47335159561544,
         0.001005369819472018,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     // 创建 CharLine

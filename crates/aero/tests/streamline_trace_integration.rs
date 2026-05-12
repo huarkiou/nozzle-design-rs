@@ -1,6 +1,8 @@
 //! Integration test for the full streamline-trace pipeline using a
 //! minimal synthetic flow field.
 
+use std::sync::Arc;
+
 use aero::moc::{CharLine, CharLines, MocPoint};
 use aero::streamline_trace::{CharLineSource, StreamlineConfig, StreamlineTrace};
 use geometry::{Circle, Ellipse};
@@ -11,10 +13,10 @@ use geometry::{Circle, Ellipse};
 /// Mid   (x=3): 3 points.
 /// Outlet(x=6): 3 points, wall at y=0.7 (nozzle expands).
 fn make_test_field() -> CharLines {
-    let mat = aero::Material::from_rgas_gamma(287.0, 1.4);
+    let mat = Arc::new(aero::Material::from_rgas_gamma(287.0, 1.4));
 
     let make_pt = |x: f64, y: f64, u: f64| -> MocPoint {
-        MocPoint::new(x, y, u, 0.0, 100_000.0, 300.0, 1.2, mat.clone())
+        MocPoint::new(x, y, u, 0.0, 100_000.0, 300.0, 1.2, Arc::clone(&mat))
     };
 
     let mut lines = CharLines::new();

@@ -244,6 +244,8 @@ fn initial_moc_point(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::Material;
 
@@ -256,7 +258,7 @@ mod tests {
             100000.0,
             300.0,
             1.2,
-            Material::from_rgas_gamma(287.0, 1.4),
+            Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
         )
     }
 

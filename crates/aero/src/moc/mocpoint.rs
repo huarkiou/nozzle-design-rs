@@ -1,6 +1,7 @@
 use std::{
     fmt::Display,
     ops::{Add, Div, Mul, Sub},
+    sync::Arc,
 };
 
 use math::Tolerance;
@@ -24,13 +25,22 @@ pub struct MocPoint {
     pub t: f64,
     /// 静密度 单位：kg/m^3
     pub rho: f64,
-    /// 物性参数
-    pub mat: Material,
+    /// 物性参数（全局共享，所有点引用同一份）
+    pub mat: Arc<Material>,
 }
 
 // 构造方法
 impl MocPoint {
-    pub fn new(x: f64, y: f64, u: f64, v: f64, p: f64, t: f64, rho: f64, mat: Material) -> Self {
+    pub fn new(
+        x: f64,
+        y: f64,
+        u: f64,
+        v: f64,
+        p: f64,
+        t: f64,
+        rho: f64,
+        mat: Arc<Material>,
+    ) -> Self {
         Self {
             x,
             y,
@@ -51,7 +61,7 @@ impl MocPoint {
         p: f64,
         t_total: f64,
         rho: f64,
-        mat: Material,
+        mat: Arc<Material>,
     ) -> Self {
         let t = isentropic::cal_static_temperature(
             mat.borrow_cp(),
@@ -299,7 +309,7 @@ impl Default for MocPoint {
             p: f64::NAN,
             t: f64::NAN,
             rho: f64::NAN,
-            mat: Material::air_constant(),
+            mat: Arc::new(Material::air_constant()),
         }
     }
 }
@@ -508,7 +518,7 @@ impl MocPoint {
             p: lerp(p1.p, p2.p),
             t: lerp(p1.t, p2.t),
             rho: lerp(p1.rho, p2.rho),
-            mat: p1.mat.clone(), // 假设物性相同；否则需额外处理
+            mat: Arc::clone(&p1.mat), // 全流场共享同一物性
         }
     }
 }
@@ -518,7 +528,16 @@ mod tests {
     use super::*;
 
     fn make_point(x: f64, y: f64, u: f64, v: f64, p: f64, t: f64, rho: f64) -> MocPoint {
-        MocPoint::new(x, y, u, v, p, t, rho, Material::from_rgas_gamma(287.0, 1.4))
+        MocPoint::new(
+            x,
+            y,
+            u,
+            v,
+            p,
+            t,
+            rho,
+            Arc::new(Material::from_rgas_gamma(287.0, 1.4)),
+        )
     }
 
     #[test]

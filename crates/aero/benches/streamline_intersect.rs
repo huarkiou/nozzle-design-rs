@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use aero::{Material, moc::MocPoint, streamline_trace::calculate_streamline_intersection};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_intersect_typical(c: &mut Criterion) {
-    let mat = Material::from_rgas_gamma(320.0, 1.2);
+    let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
     let p_prev = MocPoint::from_compatible(
         0.135683,
@@ -13,7 +15,7 @@ fn bench_intersect_typical(c: &mut Criterion) {
         32781.0,
         3000.0,
         0.083482,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_a = MocPoint::from_compatible(
@@ -24,7 +26,7 @@ fn bench_intersect_typical(c: &mut Criterion) {
         34042.0,
         3000.0,
         0.086151,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_b = MocPoint::from_compatible(
@@ -35,7 +37,7 @@ fn bench_intersect_typical(c: &mut Criterion) {
         33500.0,
         3000.0,
         0.085000,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let line = vec![p_a, p_b];
@@ -48,7 +50,7 @@ fn bench_intersect_typical(c: &mut Criterion) {
 }
 
 fn bench_intersect_steep(c: &mut Criterion) {
-    let mat = Material::from_rgas_gamma(320.0, 1.2);
+    let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
     let p_prev = MocPoint::from_compatible(
         5.9734,
@@ -58,7 +60,7 @@ fn bench_intersect_steep(c: &mut Criterion) {
         65.1235,
         2000.0,
         0.001006,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_a = MocPoint::from_compatible(
@@ -69,7 +71,7 @@ fn bench_intersect_steep(c: &mut Criterion) {
         57.5989,
         2000.0,
         0.000769,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_b = MocPoint::from_compatible(
@@ -80,7 +82,7 @@ fn bench_intersect_steep(c: &mut Criterion) {
         74.5291,
         108.964,
         0.001002,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let line = vec![p_a, p_b];
@@ -93,7 +95,7 @@ fn bench_intersect_steep(c: &mut Criterion) {
 }
 
 fn bench_intersect_upstream(c: &mut Criterion) {
-    let mat = Material::from_rgas_gamma(320.0, 1.2);
+    let mat = Arc::new(Material::from_rgas_gamma(320.0, 1.2));
 
     let p_prev = MocPoint::from_compatible(
         6.0362,
@@ -103,7 +105,7 @@ fn bench_intersect_upstream(c: &mut Criterion) {
         32781.0,
         3000.0,
         0.083482,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_a = MocPoint::from_compatible(
@@ -114,7 +116,7 @@ fn bench_intersect_upstream(c: &mut Criterion) {
         34042.0,
         3000.0,
         0.086151,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let p_b = MocPoint::from_compatible(
@@ -125,7 +127,7 @@ fn bench_intersect_upstream(c: &mut Criterion) {
         33500.0,
         3000.0,
         0.085000,
-        mat.clone(),
+        Arc::clone(&mat),
     );
 
     let line = vec![p_a, p_b];
