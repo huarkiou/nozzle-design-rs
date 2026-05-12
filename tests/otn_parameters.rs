@@ -181,7 +181,7 @@ fn test_otn_inlet_high_ma() {
         Material::air_nasa9piecewise_polynomial(),
         1.0,
         6.0,
-        3.0,
+        2.5,
         800_000.0,
         2000.0,
         19.0_f64.to_radians(),

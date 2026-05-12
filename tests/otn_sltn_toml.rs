@@ -300,13 +300,9 @@ fn test_toml_pipeline_piecewise_cp() {
     let tracer = run_sltn_from_toml_template(sltn_toml, &field_path);
 
     // 6. 验证
-    common::assert_sltn_valid(&tracer, 6.0);
+    common::assert_sltn_valid(&tracer, 5.0);
 }
 
-/// 常数比热容 (γ=1.4) — 完整 TOML 继承流程。
-///
-/// 与分段多项式测试相同的流程，但使用常数比热容材料模型。
-/// 验证常数 Cp 在 TOML 解析路径下也能正确工作。
 #[test]
 #[ignore = "full TOML OTN→SLTN pipeline, run with -- --ignored"]
 fn test_toml_pipeline_constant_cp() {
@@ -526,5 +522,5 @@ fn test_toml_pipeline_custom_cp_segments() {
     let tracer = run_sltn_from_toml_template(sltn_toml, &field_path);
 
     // 6. 验证
-    common::assert_sltn_valid(&tracer, 6.0);
+    common::assert_sltn_valid(&tracer, 5.0);
 }
