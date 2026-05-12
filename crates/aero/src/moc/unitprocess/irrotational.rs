@@ -96,7 +96,7 @@ impl UnitProcess for Irrotational {
 
         let mut pr = (p1 + p2) / 2.;
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 计算 pr.x 和 pr.y
             pr.x = (p1.y - p2.y - lm * p1.x + lp * p2.x) / (lp - lm);
@@ -119,9 +119,7 @@ impl UnitProcess for Irrotational {
             }
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 
@@ -148,7 +146,7 @@ impl UnitProcess for Irrotational {
 
         let mut pr = p1.clone();
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 计算 pr.x 和 pr.y
             pr.x = p1.x - p1.y / lm;
@@ -165,9 +163,7 @@ impl UnitProcess for Irrotational {
             pr.v = v;
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 
@@ -196,10 +192,13 @@ impl UnitProcess for Irrotational {
             y: wall_info.1,
             u: velo * wall_info.2.cos(),
             v: velo * wall_info.2.sin(),
-            ..p3.clone()
+            p: p3.p,
+            t: p3.t,
+            rho: p3.rho,
+            mat: p3.mat.clone(),
         };
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 计算此轮迭代中的p3参数
             for _ in 0..self.conf.n_corr {
@@ -243,9 +242,7 @@ impl UnitProcess for Irrotational {
             pr.v = pr.u * l0;
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
         }
@@ -276,7 +273,7 @@ impl UnitProcess for Irrotational {
         let mut pr = (p1 + p2) / 2.;
         (pr.u, pr.v) = cal_u_v(pr.y, p1);
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 流线
             let l0 = (p2.flow_direction() + pr.flow_direction()).tan();
@@ -288,9 +285,7 @@ impl UnitProcess for Irrotational {
             (pr.u, pr.v) = cal_u_v(pr.y, p1);
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 
@@ -325,16 +320,14 @@ impl UnitProcess for Irrotational {
         let mut pr = (p2 + p2_prev) / 2.; // C++: initial = average of two points
         let mut theta_p = p2.flow_direction() + (1. / p2.mach_number()).asin();
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             pr.x = p2.x + dist * theta_p.cos();
             pr.y = p2.y + dist * theta_p.sin();
             (pr.u, pr.v) = cal_u_v(pr.y, p2);
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 
@@ -365,7 +358,7 @@ impl UnitProcess for Irrotational {
 
         let mut pr = (p1 + p2) / 2.;
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 计算 pr.x 和 pr.y
             pr.x = (p1.y - p2.y - lm * p1.x + lp * p2.x) / (lp - lm);
@@ -383,9 +376,7 @@ impl UnitProcess for Irrotational {
             pr.v = v;
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 
@@ -425,7 +416,7 @@ impl UnitProcess for Irrotational {
 
         let mut pr = (p2 + p1) / 2.;
         for _ in 0..self.conf.n_corr {
-            let pr_prev = pr.clone();
+            let (px, py, pu, pv) = (pr.x, pr.y, pr.u, pr.v);
 
             // 计算p4
             for _ in 0..self.conf.n_corr {
@@ -462,9 +453,7 @@ impl UnitProcess for Irrotational {
             }
 
             // 检查是否收敛
-            if pr.is_position_converged_with(&pr_prev, self.conf.tol)
-                && pr.is_velocity_converged_with(&pr_prev, self.conf.tol)
-            {
+            if pr.is_xyuv_converged((px, py, pu, pv), self.conf.tol) {
                 break;
             }
 

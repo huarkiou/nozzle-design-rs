@@ -251,6 +251,19 @@ impl MocPoint {
             && tol.approx_eq(self.rho, other.rho)
     }
 
+    /// 检查 (x,y,u,v) 是否与快照值收敛。
+    ///
+    /// 用于迭代循环中的轻量收敛判断：调用方先 `let prev = (pr.x, pr.y, pr.u, pr.v);`
+    /// 快照当前状态，迭代后再调用此方法判断是否收敛。
+    /// 仅比较坐标和速度分量，忽略热力学状态量（后者在同一轮迭代中不变）。
+    #[inline(always)]
+    pub fn is_xyuv_converged(&self, prev: (f64, f64, f64, f64), tol: Tolerance) -> bool {
+        tol.approx_eq(self.x, prev.0)
+            && tol.approx_eq(self.y, prev.1)
+            && tol.approx_eq(self.u, prev.2)
+            && tol.approx_eq(self.v, prev.3)
+    }
+
     /// 坐标(x,y)是否有效
     pub fn is_position_valid(&self) -> bool {
         self.x.is_finite() && self.y.is_finite()

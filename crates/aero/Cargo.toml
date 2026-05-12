@@ -18,3 +18,15 @@ serde_json = "1.0"
 [[bench]]
 name = "moc_unitprocess_irrotational"
 harness = false
+
+[[bench]]
+name = "moc_interior_point"
+harness = false
+
+[[bench]]
+name = "streamline_intersect"
+harness = false
+
+[[bench]]
+name = "streamline_trace"
+harness = false

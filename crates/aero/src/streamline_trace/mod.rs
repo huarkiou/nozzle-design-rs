@@ -11,7 +11,8 @@ use crate::moc::CharLines;
 use geometry::wallpoints::{interpolate_points_theta, refine_or_coarsen_boundaries};
 use geometry::{ClosedCurve, Point3d, WallPoints};
 
-pub use trace::{CharLineSource, RevCharLines};
+pub use intersect::calculate_streamline_intersection;
+pub use trace::{CharLineSource, RevCharLines, trace_streamline};
 
 // ── error type ─────────────────────────────────────────────────
 
