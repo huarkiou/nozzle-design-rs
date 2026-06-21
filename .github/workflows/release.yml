@@ -61,11 +61,12 @@ jobs:
           TARGET="${{ matrix.target }}"
           EXT="${{ matrix.ext }}"
           NAME="nozzle-design-rs-${VERSION}-${TARGET}"
+          BIN_DIR="target/$TARGET/release"
 
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
-            tar -czf "${NAME}.tar.gz" -C target/$TARGET/release otn sltn
+            tar -czf "${NAME}.tar.gz" -C "$BIN_DIR" otn sltn
           else
-            7z a "${NAME}.zip" "target/$TARGET/release/otn${EXT}" "target/$TARGET/release/sltn${EXT}"
+            (cd "$BIN_DIR" && 7z a "../../../${NAME}.zip" "otn${EXT}" "sltn${EXT}")
           fi
 
       - name: Upload artifact
