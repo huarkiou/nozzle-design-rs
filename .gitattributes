@@ -1,0 +1,3 @@
+# Auto-detect text files and normalize line endings to LF in the repository.
+# On checkout, git converts to platform native (CRLF on Windows, LF on Linux).
+* text=auto
